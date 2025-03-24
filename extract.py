@@ -45,6 +45,10 @@ def generate_domain(name):
         domain = name[:-3] + '.de'  # Replace -pl with .pl
     elif name.endswith('-org'):
         domain = name[:-4] + '.org'  # Replace -pl with .pl
+    elif name.endswith('-net'):
+        domain = name[:-4] + '.net'  # Replace -pl with .pl
+    elif name.endswith('-run'):
+        domain = name[:-4] + '.run'  # Replace -pl with .pl
     elif name.endswith('-app'):
         domain = name[:-4] + '.app'  # Replace -pl with .pl
     elif name.endswith('-info'):

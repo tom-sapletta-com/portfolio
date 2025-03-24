@@ -303,7 +303,14 @@ def analyze_content(html_content):
 
 def generate_html(portfolio_data):
     """Generate HTML for the portfolio page."""
-    html = """
+    # Calculate statistics for the portfolio
+    total_websites = len(portfolio_data)
+    most_common_theme = find_most_common_theme(portfolio_data)
+    tech_tags = generate_tech_tags(portfolio_data)
+    current_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    # Build the HTML with triple quotes and no f-string for the CSS part
+    html_head = """
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -311,113 +318,113 @@ def generate_html(portfolio_data):
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Website Portfolio Analysis</title>
         <style>
-            body {{
+            body {
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
                 margin: 0;
                 padding: 20px;
                 background-color: #f5f5f5;
                 color: #333;
-            }}
-            h1 {{
+            }
+            h1 {
                 text-align: center;
                 margin-bottom: 30px;
                 color: #2c3e50;
-            }}
-            .portfolio-grid {{
+            }
+            .portfolio-grid {
                 display: grid;
                 grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
                 gap: 25px;
                 margin: 0 auto;
                 max-width: 1200px;
-            }}
-            .portfolio-item {{
+            }
+            .portfolio-item {
                 background-color: white;
                 border-radius: 8px;
                 overflow: hidden;
                 box-shadow: 0 4px 6px rgba(0,0,0,0.1);
                 transition: transform 0.3s ease, box-shadow 0.3s ease;
-            }}
-            .portfolio-item:hover {{
+            }
+            .portfolio-item:hover {
                 transform: translateY(-5px);
                 box-shadow: 0 10px 20px rgba(0,0,0,0.15);
-            }}
-            .thumbnail {{
+            }
+            .thumbnail {
                 width: 100%;
                 height: 200px;
                 object-fit: cover;
                 border-bottom: 1px solid #eee;
-            }}
-            .content {{
+            }
+            .content {
                 padding: 15px;
-            }}
-            .domain {{
+            }
+            .domain {
                 font-size: 18px;
                 font-weight: 600;
                 margin-bottom: 10px;
                 color: #2c3e50;
-            }}
-            .theme {{
+            }
+            .theme {
                 font-weight: 500;
                 margin-bottom: 8px;
                 color: #3498db;
-            }}
-            .description, .technologies {{
+            }
+            .description, .technologies {
                 margin-bottom: 8px;
                 font-size: 14px;
                 color: #666;
-            }}
-            .hashtags {{
+            }
+            .hashtags {
                 display: flex;
                 flex-wrap: wrap;
                 gap: 5px;
                 margin-top: 10px;
-            }}
-            .hashtag {{
+            }
+            .hashtag {
                 background-color: #e1f5fe;
                 color: #0288d1;
                 padding: 4px 8px;
                 border-radius: 4px;
                 font-size: 12px;
-            }}
-            .date-info {{
+            }
+            .date-info {
                 text-align: center;
                 margin-top: 30px;
                 color: #7f8c8d;
                 font-size: 14px;
-            }}
-            a {{
+            }
+            a {
                 color: #2c3e50;
                 text-decoration: none;
-            }}
-            a:hover {{
+            }
+            a:hover {
                 text-decoration: underline;
-            }}
-            .header {{
+            }
+            .header {
                 text-align: center;
                 margin-bottom: 40px;
-            }}
-            .stats {{
+            }
+            .stats {
                 margin: 20px auto;
                 max-width: 800px;
                 background-color: white;
                 padding: 20px;
                 border-radius: 8px;
                 box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            }}
-            .search-container {{
+            }
+            .search-container {
                 margin: 0 auto 30px;
                 max-width: 600px;
                 text-align: center;
-            }}
-            #searchInput {{
+            }
+            #searchInput {
                 width: 100%;
                 padding: 12px;
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 font-size: 16px;
                 box-sizing: border-box;
-            }}
-            .tech-tag {{
+            }
+            .tech-tag {
                 display: inline-block;
                 background-color: #f1f1f1;
                 padding: 4px 8px;
@@ -425,7 +432,7 @@ def generate_html(portfolio_data):
                 margin-bottom: 5px;
                 border-radius: 4px;
                 font-size: 12px;
-            }}
+            }
         </style>
     </head>
     <body>
@@ -437,7 +444,10 @@ def generate_html(portfolio_data):
         <div class="search-container">
             <input type="text" id="searchInput" placeholder="Search by domain, technology, theme, or keywords...">
         </div>
+    """
 
+    # Now add the stats section with proper variable substitution
+    stats_section = f"""
         <div class="stats">
             <h2>Portfolio Stats</h2>
             <p>Total websites analyzed: <strong>{total_websites}</strong></p>
@@ -451,11 +461,26 @@ def generate_html(portfolio_data):
         <div class="portfolio-grid">
     """
 
-    # Add each portfolio item
+    # Build the portfolio items
+    portfolio_items = ""
     for site in portfolio_data:
-        html += """
+        domain = site.get("domain", "Unknown")
+        url = site.get("url", "#")
+        domain_hash = site.get("domain_hash", "unknown")
+        thumbnail = os.path.join("thumbnails", f"{domain_hash}.jpg")
+        color = get_color_for_domain(domain)
+        initials = get_initials(domain)
+        theme = site.get("theme", "Unknown")
+        keywords = " ".join(site.get("keywords", []))
+        technologies = " ".join(site.get("technologies", []))
+        technologies_list = ", ".join(site.get("technologies", ["Not detected"]))
+        description = generate_description(site)
+        hashtags_html = "".join([f'<span class="hashtag">{tag}</span>' for tag in site.get("hashtags", [])])
+
+        # Poprawione kodowanie SVG używając apostrofów zamiast podwójnych cudzysłowów
+        portfolio_items += f"""
             <div class="portfolio-item" data-domain="{domain}" data-theme="{theme}" data-keywords="{keywords}" data-tech="{technologies}">
-                <img src="{thumbnail}" alt="{domain}" class="thumbnail" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"300\" height=\"200\" viewBox=\"0 0 300 200\"><rect fill=\"%23{color}\" width=\"300\" height=\"200\"/><text fill=\"%23fff\" font-family=\"Arial\" font-size=\"30\" font-weight=\"bold\" text-anchor=\"middle\" x=\"150\" y=\"110\">{initials}</text></svg>';">
+                <img src="{thumbnail}" alt="{domain}" class="thumbnail" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'300\\' height=\\'200\\' viewBox=\\'0 0 300 200\\'><rect fill=\\'{color}\\' width=\\'300\\' height=\\'200\\'></rect><text fill=\\'%23fff\\' font-family=\\'Arial\\' font-size=\\'30\\' font-weight=\\'bold\\' text-anchor=\\'middle\\' x=\\'150\\' y=\\'110\\'>{initials}</text></svg>';">
                 <div class="content">
                     <div class="domain"><a href="{url}" target="_blank">{domain}</a></div>
                     <div class="theme">{theme}</div>
@@ -464,41 +489,29 @@ def generate_html(portfolio_data):
                         {description}
                     </div>
                     <div class="hashtags">
-                        {hashtags}
+                        {hashtags_html}
                     </div>
                 </div>
             </div>
-        """.format(
-            domain=site.get("domain", "Unknown"),
-            url=site.get("url", "#"),
-            thumbnail=os.path.join("thumbnails", f"{site.get('domain_hash')}.jpg"),
-            color=get_color_for_domain(site.get("domain", "Unknown")),
-            initials=get_initials(site.get("domain", "Unknown")),
-            theme=site.get("theme", "Unknown"),
-            keywords=" ".join(site.get("keywords", [])),
-            technologies=" ".join(site.get("technologies", [])),
-            technologies_list=", ".join(site.get("technologies", ["Not detected"])),
-            description=generate_description(site),
-            hashtags="".join([f'<span class="hashtag">{tag}</span>' for tag in site.get("hashtags", [])])
-        )
+        """
 
-    # Add footer and JavaScript for search functionality
-    html += """
+    # Build the footer and script - use raw string for JavaScript
+    html_footer = f"""
         </div>
 
         <div class="date-info">
-            <p>Last updated: {date}</p>
+            <p>Last updated: {current_date}</p>
         </div>
 
         <script>
-            document.addEventListener('DOMContentLoaded', function() {
+            document.addEventListener('DOMContentLoaded', function() {{
                 const searchInput = document.getElementById('searchInput');
                 const portfolioItems = document.querySelectorAll('.portfolio-item');
 
-                searchInput.addEventListener('keyup', function() {
+                searchInput.addEventListener('keyup', function() {{
                     const searchTerm = this.value.toLowerCase();
 
-                    portfolioItems.forEach(item => {
+                    portfolioItems.forEach(item => {{
                         const domain = item.getAttribute('data-domain').toLowerCase();
                         const theme = item.getAttribute('data-theme').toLowerCase();
                         const keywords = item.getAttribute('data-keywords').toLowerCase();
@@ -507,21 +520,21 @@ def generate_html(portfolio_data):
                         if (domain.includes(searchTerm) || 
                             theme.includes(searchTerm) || 
                             keywords.includes(searchTerm) || 
-                            tech.includes(searchTerm)) {
+                            tech.includes(searchTerm)) {{
                             item.style.display = 'block';
-                        } else {
+                        }} else {{
                             item.style.display = 'none';
-                        }
-                    });
-                });
-            });
+                        }}
+                    }});
+                }});
+            }});
         </script>
     </body>
     </html>
-    """.format(date=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
+    """
 
-    return html
-
+    # Combine all parts
+    return html_head + stats_section + portfolio_items + html_footer
 
 def get_color_for_domain(domain):
     """Generate a consistent color hex code for a domain."""
