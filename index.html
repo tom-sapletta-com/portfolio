@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tom Sapletta Portfolio</title>
     <script src="image-preloader.js"></script>
-    <script src="script.js"></script>
-    <link rel="stylesheet" href="styles.css">
+    <script src="media/script.js"></script>
+    <link rel="stylesheet" href="media/styles.css">
 </head>
 <body>
     <header>
@@ -144,7 +144,7 @@
                         // Create HTML content
                         item.innerHTML = `
                             <div class="thumbnail-container">
-                                <img src="thumbnails/${domain}.jpg" alt="${domain}" onerror="
+                                <img src="media/thumbnails/${domain}.jpg" alt="${domain}" onerror="
                                     if (!this.getAttribute('data-error-handled')) {
                                         this.setAttribute('data-error-handled', 'true');
 
