@@ -120,12 +120,53 @@ The script generates:
    - `data.json`: JSON file with all the portfolio data
 2. A Git repository in the `portfolio` directory, ready to be pushed to a remote repository
 
+
 ## Troubleshooting
 
 - If the script fails to push to the Git repository, make sure you've set up the remote correctly
 - If website analysis fails, check the log file for more details
 - The script creates a log file (`portfolio_generator.log`) with detailed information about its execution
 
+
+
+I'll create a script that will automatically add the cron job to run the portfolio generator at 16:00 daily:
+
+I've created a script that will automatically add a cron job for running your portfolio generator. Here's what this script does:
+
+1. **Detects the location** of your portfolio generator script automatically
+2. **Finds the Python executable** path on your system
+3. **Checks for existing cron jobs** for the same script to avoid duplicates
+4. **Allows customization** of the cron schedule if you don't want the default 16:00 time
+5. **Configures logging options** so you can keep track of script execution
+6. **Updates your crontab** with the new settings
+
+
+### How to use the script:
+
+1. Save it as `add-cron-job.sh` in the same directory as your portfolio generator
+2. Make it executable:
+   ```bash
+   chmod +x add-cron-job.sh
+   ```
+3. Run it:
+   ```bash
+   ./add-cron-job.sh
+   ```
+
+The script is interactive and will guide you through the process with prompts. By default, it will set up the cron job to run the portfolio generator daily at 16:00, but you can customize this schedule if needed.
+
+After running the script, you can verify that the cron job was added successfully by running:
+```bash
+crontab -l
+```
+
+This script is designed to be user-friendly even for those who aren't familiar with cron syntax.
+
+
+
 ## License
 
 This script is provided as-is with no warranty. Use at your own risk.
+
+
+
