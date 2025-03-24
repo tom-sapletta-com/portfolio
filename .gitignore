@@ -1,3 +1,9 @@
+.idea
+org.txt
+portfolio.txt
+portfolio2.txt
+existing.txt
+domains.csv
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

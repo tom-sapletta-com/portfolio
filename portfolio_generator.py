@@ -317,6 +317,8 @@ def generate_html(portfolio_data):
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Website Portfolio Analysis</title>
+        <script src="image-preloader.js"></script>
+        <script src="script.js"></script>
         <style>
             body {
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -337,22 +339,47 @@ def generate_html(portfolio_data):
                 margin: 0 auto;
                 max-width: 1200px;
             }
+/* Te style są już zaktualizowane w poprzedniej zmianie */
             .portfolio-item {
                 background-color: white;
                 border-radius: 8px;
                 overflow: hidden;
                 box-shadow: 0 4px 6px rgba(0,0,0,0.1);
                 transition: transform 0.3s ease, box-shadow 0.3s ease;
+                display: flex;
+                flex-direction: column;
             }
             .portfolio-item:hover {
                 transform: translateY(-5px);
                 box-shadow: 0 10px 20px rgba(0,0,0,0.15);
             }
-            .thumbnail {
+            .image-container {
                 width: 100%;
-                height: 200px;
-                object-fit: cover;
+                padding-top: 66.67%; /* Proporcja 3:2 */
+                position: relative;
+                overflow: hidden;
                 border-bottom: 1px solid #eee;
+                background-color: #f5f5f5;
+            }
+            .thumbnail, .thumbnail-iframe {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                border: none;
+            }
+            /* Stylowanie dla kontenera z aktywnym iframe */
+            .iframe-active {
+                background-color: #fff;
+            }
+            /* Styl dla iframe aby zachował proporcje i poprawnie wyświetlał zawartość */
+            .thumbnail-iframe {
+                overflow: hidden;
+                background-color: white;
+                transform: scale(1.0);
+                transform-origin: 0 0;
             }
             .content {
                 padding: 15px;
@@ -480,7 +507,47 @@ def generate_html(portfolio_data):
         # Poprawione kodowanie SVG używając apostrofów zamiast podwójnych cudzysłowów
         portfolio_items += f"""
             <div class="portfolio-item" data-domain="{domain}" data-theme="{theme}" data-keywords="{keywords}" data-tech="{technologies}">
-                <img src="{thumbnail}" alt="{domain}" class="thumbnail" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'300\\' height=\\'200\\' viewBox=\\'0 0 300 200\\'><rect fill=\\'{color}\\' width=\\'300\\' height=\\'200\\'></rect><text fill=\\'%23fff\\' font-family=\\'Arial\\' font-size=\\'30\\' font-weight=\\'bold\\' text-anchor=\\'middle\\' x=\\'150\\' y=\\'110\\'>{initials}</text></svg>';">
+                <div class="image-container">
+                    <img src="{thumbnail}" alt="{domain}" class="thumbnail" 
+                        onerror="
+                        if (!this.hasAttribute('data-tried-iframe')) {{
+                          this.setAttribute('data-tried-iframe', 'true');
+
+                          // Utwórz iframe bezpośrednio w kontenerze obrazu
+                          var iframe = document.createElement('iframe');
+                          iframe.src = '{url}';
+                          iframe.className = 'thumbnail-iframe';
+                          iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts');
+                          iframe.setAttribute('loading', 'lazy');
+
+                          // Obsługa błędu iframe
+                          iframe.onerror = () => {{
+                            iframe.remove();
+                            this.style.display = 'block';
+                            this.src = 'data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'300\\' height=\\'200\\' viewBox=\\'0 0 300 200\\'><rect fill=\\'%23{color}\\' width=\\'300\\' height=\\'200\\'></rect><text fill=\\'%23fff\\' font-family=\\'Arial\\' font-size=\\'30\\' font-weight=\\'bold\\' text-anchor=\\'middle\\' x=\\'150\\' y=\\'110\\'>{initials}</text></svg>';
+                          }};
+
+                          // Dodaj klasę iframe-active do kontenera obrazu dla ewentualnego stylowania
+                          this.parentNode.classList.add('iframe-active');
+
+                          // Ukryj obraz i wstaw iframe przed nim
+                          this.style.display = 'none';
+                          this.parentNode.insertBefore(iframe, this);
+
+                          // Obsługa awarii ładowania iframe po timeout
+                          setTimeout(() => {{
+                            if (iframe.contentDocument && 
+                                (!iframe.contentDocument.body || 
+                                 iframe.contentDocument.body.innerHTML === '')) {{
+                              iframe.remove();
+                              this.style.display = 'block';
+                              this.src = 'data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'300\\' height=\\'200\\' viewBox=\\'0 0 300 200\\'><rect fill=\\'%23{color}\\' width=\\'300\\' height=\\'200\\'></rect><text fill=\\'%23fff\\' font-family=\\'Arial\\' font-size=\\'30\\' font-weight=\\'bold\\' text-anchor=\\'middle\\' x=\\'150\\' y=\\'110\\'>{initials}</text></svg>';
+                              this.parentNode.classList.remove('iframe-active');
+                            }}
+                          }}, 5000);
+                        }} else {{
+                          this.src = 'data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'300\\' height=\\'200\\' viewBox=\\'0 0 300 200\\'><rect fill=\\'%23{color}\\' width=\\'300\\' height=\\'200\\'></rect><text fill=\\'%23fff\\' font-family=\\'Arial\\' font-size=\\'30\\' font-weight=\\'bold\\' text-anchor=\\'middle\\' x=\\'150\\' y=\\'110\\'>{initials}</text></svg>';
+                        }}">
                 <div class="content">
                     <div class="domain"><a href="{url}" target="_blank">{domain}</a></div>
                     <div class="theme">{theme}</div>
@@ -491,6 +558,7 @@ def generate_html(portfolio_data):
                     <div class="hashtags">
                         {hashtags_html}
                     </div>
+                </div>
                 </div>
             </div>
         """
@@ -535,6 +603,7 @@ def generate_html(portfolio_data):
 
     # Combine all parts
     return html_head + stats_section + portfolio_items + html_footer
+
 
 def get_color_for_domain(domain):
     """Generate a consistent color hex code for a domain."""
