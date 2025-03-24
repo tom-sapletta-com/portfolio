@@ -1,71 +1,58 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-"""
-Portfolio Generator - Analyzes websites and creates a portfolio page
-"""
-
 import os
 import re
-import sys
+import git
+import json
 import time
+import hashlib
 import logging
 import requests
 import schedule
-import datetime
-import subprocess
-import threading
-from bs4 import BeautifulSoup
-from urllib.parse import urlparse
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.cluster import MiniBatchKMeans
-import numpy as np
-import git
 from PIL import Image
 from io import BytesIO
-import json
-import hashlib
-
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("portfolio_generator.log"),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-logger = logging.getLogger("portfolio_generator")
+from datetime import datetime, timedelta
+from urllib.parse import urlparse
+from bs4 import BeautifulSoup
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 # Configuration
 DOMAINS_FILE = "portfolio.txt"
 OUTPUT_DIR = "portfolio"
-HTML_OUTPUT = os.path.join(OUTPUT_DIR, "index.html")
 THUMBNAILS_DIR = os.path.join(OUTPUT_DIR, "thumbnails")
 DATA_FILE = os.path.join(OUTPUT_DIR, "data.json")
 GIT_REPO_PATH = OUTPUT_DIR
 GIT_REMOTE = "origin"
 GIT_BRANCH = "main"
-HTTP_TIMEOUT = 15  # seconds
+HTTP_TIMEOUT = 10
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("portfolio_generator.log"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger("portfolio_generator")
 
 
 def normalize_url(url):
     """Normalize URL to standard format."""
     url = url.strip().lower()
-    
+
     # Add http:// if no protocol specified
     if not url.startswith(('http://', 'https://')):
         url = 'http://' + url
-    
+
     # Parse URL and reconstruct it
     parsed = urlparse(url)
     hostname = parsed.netloc
-    
+
     # Remove www. if present
     if hostname.startswith('www.'):
         hostname = hostname[4:]
-    
+
     # Return normalized URL
     return f"{parsed.scheme}://{hostname}"
 
@@ -84,107 +71,6 @@ def get_domain_content(url):
         return None
 
 
-def capture_thumbnail(url, domain_name):
-    """Capture a thumbnail of the website."""
-    try:
-        # Since we can't use Selenium or similar tools with the resource constraints,
-        # we'll try to find and use the largest image on the page as a thumbnail
-        headers = {
-            'User-Agent': USER_AGENT
-        }
-        response = requests.get(url, headers=headers, timeout=HTTP_TIMEOUT)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Try to find the largest image
-        largest_image = None
-        max_size = 0
-        
-        # Check for open graph image first
-        og_image = soup.find('meta', property='og:image')
-        if og_image and og_image.get('content'):
-            img_url = og_image.get('content')
-            if not img_url.startswith(('http://', 'https://')):
-                base_url = urlparse(url)
-                img_url = f"{base_url.scheme}://{base_url.netloc}{img_url}"
-            
-            try:
-                img_response = requests.get(img_url, headers=headers, timeout=HTTP_TIMEOUT)
-                img_response.raise_for_status()
-                img = Image.open(BytesIO(img_response.content))
-                
-                # Save thumbnail
-                os.makedirs(THUMBNAILS_DIR, exist_ok=True)
-                thumbnail_path = os.path.join(THUMBNAILS_DIR, f"{domain_name}.jpg")
-                img = img.convert('RGB')  # Convert to RGB for JPG
-                img.thumbnail((300, 200))  # Resize to thumbnail
-                img.save(thumbnail_path, 'JPEG')
-                return thumbnail_path
-            except Exception as e:
-                logger.warning(f"Could not use og:image for {url}: {e}")
-        
-        # If og:image fails, try to find the largest image
-        for img in soup.find_all('img'):
-            src = img.get('src')
-            if not src:
-                continue
-                
-            # Convert relative URLs to absolute
-            if not src.startswith(('http://', 'https://')):
-                base_url = urlparse(url)
-                src = f"{base_url.scheme}://{base_url.netloc}{src}"
-            
-            # Get image dimensions from attributes or download and check
-            width = img.get('width')
-            height = img.get('height')
-            
-            try:
-                if width and height:
-                    size = int(width) * int(height)
-                else:
-                    img_response = requests.get(src, headers=headers, timeout=HTTP_TIMEOUT)
-                    img_response.raise_for_status()
-                    img_obj = Image.open(BytesIO(img_response.content))
-                    size = img_obj.width * img_obj.height
-                
-                if size > max_size:
-                    max_size = size
-                    largest_image = src
-            except Exception as e:
-                continue
-        
-        # Use the largest image as thumbnail
-        if largest_image:
-            try:
-                img_response = requests.get(largest_image, headers=headers, timeout=HTTP_TIMEOUT)
-                img_response.raise_for_status()
-                img = Image.open(BytesIO(img_response.content))
-                
-                # Save thumbnail
-                os.makedirs(THUMBNAILS_DIR, exist_ok=True)
-                thumbnail_path = os.path.join(THUMBNAILS_DIR, f"{domain_name}.jpg")
-                img = img.convert('RGB')  # Convert to RGB for JPG
-                img.thumbnail((300, 200))  # Resize to thumbnail
-                img.save(thumbnail_path, 'JPEG')
-                return thumbnail_path
-            except Exception as e:
-                logger.error(f"Error creating thumbnail for {url}: {e}")
-        
-        # If all fails, create a placeholder thumbnail with domain name
-        os.makedirs(THUMBNAILS_DIR, exist_ok=True)
-        thumbnail_path = os.path.join(THUMBNAILS_DIR, f"{domain_name}.jpg")
-        img = Image.new('RGB', (300, 200), color=(73, 109, 137))
-        return thumbnail_path
-    
-    except Exception as e:
-        logger.error(f"Error capturing thumbnail for {url}: {e}")
-        # Create a placeholder thumbnail
-        os.makedirs(THUMBNAILS_DIR, exist_ok=True)
-        thumbnail_path = os.path.join(THUMBNAILS_DIR, f"{domain_name}.jpg")
-        img = Image.new('RGB', (300, 200), color=(200, 200, 200))
-        return thumbnail_path
-
-
 def analyze_content(html_content):
     """Analyze website content to identify theme and technologies."""
     if not html_content:
@@ -193,36 +79,36 @@ def analyze_content(html_content):
             "keywords": [],
             "technologies": []
         }
-    
+
     soup = BeautifulSoup(html_content, 'html.parser')
-    
+
     # Extract text for theme/keywords analysis
     text_content = soup.get_text(separator=' ', strip=True)
-    
+
     # Very simple NLP with TF-IDF to extract keywords
     try:
         # Simple preprocessing
         text_content = re.sub(r'\s+', ' ', text_content).lower()
-        
+
         # Extract keywords with TF-IDF
         vectorizer = TfidfVectorizer(
             max_features=100,
             stop_words='english',
             ngram_range=(1, 2)
         )
-        
+
         # Ensure we have enough text to analyze
         if len(text_content.split()) < 10:
             keywords = []
         else:
             tfidf_matrix = vectorizer.fit_transform([text_content])
             feature_names = vectorizer.get_feature_names_out()
-            
+
             # Get top keywords
             scores = zip(feature_names, tfidf_matrix.toarray()[0])
             sorted_scores = sorted(scores, key=lambda x: x[1], reverse=True)
             keywords = [word for word, score in sorted_scores[:10] if score > 0]
-        
+
         # Cluster text to identify theme
         if len(text_content.split()) < 20:
             theme = "Unknown"
@@ -234,376 +120,885 @@ def analyze_content(html_content):
                 "portfolio": ["portfolio", "work", "project", "gallery", "showcase"],
                 "corporate": ["company", "business", "service", "solution", "client", "partner"],
                 "news": ["news", "article", "latest", "update", "publish", "press"],
-                "education": ["course", "class", "learn", "student", "education", "training"],
-                "technology": ["tech", "software", "application", "digital", "innovation"]
+                "education": ["course", "learn", "student", "education", "training", "class"],
+                "technology": ["tech", "software", "app", "digital", "innovation", "solution"]
             }
-            
+
+            # Count theme-related words
             theme_scores = {}
-            for theme_name, theme_keywords in common_themes.items():
-                score = sum(1 for keyword in theme_keywords if keyword in text_content.lower())
+            for theme_name, theme_words in common_themes.items():
+                score = sum(1 for word in theme_words if word in text_content)
                 theme_scores[theme_name] = score
-            
-            theme = max(theme_scores.items(), key=lambda x: x[1])[0] if any(theme_scores.values()) else "Unknown"
-        
-        # Identify technologies - check for common frameworks and libraries
-        technologies = []
-        
-        # JavaScript frameworks
-        if "react" in html_content.lower() or "reactjs" in html_content.lower():
-            technologies.append("React")
-        if "vue" in html_content.lower() or "vuejs" in html_content.lower():
-            technologies.append("Vue.js")
-        if "angular" in html_content.lower():
-            technologies.append("Angular")
-        if "jquery" in html_content.lower():
-            technologies.append("jQuery")
-        
-        # CSS frameworks
-        if "bootstrap" in html_content.lower():
-            technologies.append("Bootstrap")
-        if "tailwind" in html_content.lower():
-            technologies.append("Tailwind CSS")
-        if "bulma" in html_content.lower():
-            technologies.append("Bulma")
-        
-        # CMS
-        if "wordpress" in html_content.lower():
-            technologies.append("WordPress")
-        if "drupal" in html_content.lower():
-            technologies.append("Drupal")
-        if "joomla" in html_content.lower():
-            technologies.append("Joomla")
-        if "shopify" in html_content.lower():
-            technologies.append("Shopify")
-        
-        # Analytics
-        if "google analytics" in html_content.lower() or "ga.js" in html_content.lower() or "analytics.js" in html_content.lower():
-            technologies.append("Google Analytics")
-        
-        # Generate hashtags from keywords and theme
-        hashtags = [f"#{keyword.replace(' ', '')}" for keyword in keywords[:5]]
-        hashtags.append(f"#{theme}")
-        
-        return {
-            "theme": theme.capitalize(),
-            "keywords": keywords,
-            "technologies": technologies,
-            "hashtags": hashtags
+
+            # Get the theme with the highest score
+            max_score = max(theme_scores.values()) if theme_scores else 0
+            if max_score > 0:
+                theme = max(theme_scores.items(), key=lambda x: x[1])[0]
+            else:
+                theme = "General"
+
+        # Detect technologies
+        tech_patterns = {
+            "WordPress": ["wp-content", "wp-includes", "wordpress"],
+            "React": ["react", "reactjs", "jsx"],
+            "Angular": ["angular", "ng-"],
+            "Vue.js": ["vue", "vuejs"],
+            "Bootstrap": ["bootstrap"],
+            "jQuery": ["jquery"],
+            "PHP": ["php"],
+            "Laravel": ["laravel"],
+            "Django": ["django"],
+            "Flask": ["flask"],
+            "Node.js": ["node", "nodejs"],
+            "Express": ["express"],
+            "MongoDB": ["mongodb", "mongo"],
+            "MySQL": ["mysql"],
+            "PostgreSQL": ["postgresql", "postgres"],
+            "Ruby on Rails": ["rails", "ruby on rails"],
+            "Shopify": ["shopify"],
+            "Wix": ["wix"],
+            "Squarespace": ["squarespace"],
+            "Webflow": ["webflow"],
+            "Gatsby": ["gatsby"],
+            "Next.js": ["next.js", "nextjs"],
+            "Nuxt.js": ["nuxt.js", "nuxtjs"],
+            "Svelte": ["svelte"],
+            "TypeScript": ["typescript"],
+            "Tailwind CSS": ["tailwind"],
+            "Material UI": ["material-ui", "mui"],
+            "GraphQL": ["graphql"],
+            "Redux": ["redux"],
+            "Firebase": ["firebase"],
+            "AWS": ["aws", "amazon web services"],
+            "Google Cloud": ["gcp", "google cloud"],
+            "Azure": ["azure", "microsoft azure"],
+            "Cloudflare": ["cloudflare"],
+            "Netlify": ["netlify"],
+            "Vercel": ["vercel"],
+            "Heroku": ["heroku"],
+            "Docker": ["docker"],
+            "Kubernetes": ["kubernetes", "k8s"],
+            "Webpack": ["webpack"],
+            "Babel": ["babel"],
+            "ESLint": ["eslint"],
+            "Jest": ["jest"],
+            "Mocha": ["mocha"],
+            "Cypress": ["cypress"],
+            "Google Analytics": ["google analytics", "ga"],
+            "Stripe": ["stripe"],
+            "PayPal": ["paypal"],
+            "Algolia": ["algolia"],
+            "Contentful": ["contentful"],
+            "Sanity": ["sanity.io", "sanity"],
+            "Drupal": ["drupal"],
+            "Joomla": ["joomla"],
+            "Magento": ["magento"],
+            "WooCommerce": ["woocommerce"],
+            "PrestaShop": ["prestashop"],
+            "OpenCart": ["opencart"],
+            "Elementor": ["elementor"],
+            "Divi": ["divi"],
+            "Gutenberg": ["gutenberg"],
+            "SASS/SCSS": ["sass", "scss"],
+            "Less": ["less"],
+            "Styled Components": ["styled-components", "styled components"],
+            "Emotion": ["emotion"],
+            "Chakra UI": ["chakra"],
+            "Ant Design": ["antd", "ant design"],
+            "Semantic UI": ["semantic-ui", "semantic ui"],
+            "Bulma": ["bulma"],
+            "Foundation": ["foundation"],
+            "Alpine.js": ["alpine.js", "alpinejs"],
+            "Stimulus": ["stimulus"],
+            "Ember": ["ember"],
+            "Backbone.js": ["backbone"],
+            "Meteor": ["meteor"],
+            "Socket.io": ["socket.io", "socketio"],
+            "D3.js": ["d3.js", "d3"],
+            "Three.js": ["three.js", "threejs"],
+            "Chart.js": ["chart.js", "chartjs"],
+            "Highcharts": ["highcharts"],
+            "Plotly": ["plotly"],
+            "Leaflet": ["leaflet"],
+            "Mapbox": ["mapbox"],
+            "Auth0": ["auth0"],
+            "Okta": ["okta"],
+            "Sentry": ["sentry"],
+            "New Relic": ["newrelic", "new relic"],
+            "Datadog": ["datadog"],
+            "Amplitude": ["amplitude"],
+            "Mixpanel": ["mixpanel"],
+            "Hotjar": ["hotjar"],
+            "Intercom": ["intercom"],
+            "Zendesk": ["zendesk"],
+            "Hubspot": ["hubspot"],
+            "Mailchimp": ["mailchimp"],
+            "SendGrid": ["sendgrid"],
+            "Twilio": ["twilio"],
+            "Cloudinary": ["cloudinary"],
+            "Akamai": ["akamai"],
+            "Fastly": ["fastly"],
+            "Vimeo": ["vimeo"],
+            "YouTube": ["youtube"],
+            "Disqus": ["disqus"],
+            "Discourse": ["discourse"],
+            "Ghost": ["ghost"],
+            "Medium": ["medium"],
+            "Webmentions": ["webmention"],
+            "IndieWeb": ["indieweb"],
+            "Microformats": ["microformats", "h-card", "h-entry"],
+            "JSON-LD": ["json-ld", "jsonld"],
+            "Schema.org": ["schema.org", "schema"],
+            "Open Graph": ["og:"],
+            "Twitter Cards": ["twitter:"],
+            "AMP": ["amp-", "accelerated mobile pages"],
+            "PWA": ["progressive web app", "service-worker.js", "manifest.json"],
+            "WebAssembly": ["wasm", "webassembly"],
+            "WebGL": ["webgl"],
+            "WebRTC": ["webrtc"],
+            "WebSockets": ["websocket"],
+            "Web Components": ["custom-elements", "shadow-dom", "web components"],
+            "Lit": ["lit-element", "lit-html", "lit"],
+            "Stencil": ["stencil"],
+            "Polymer": ["polymer"],
+            "Ionic": ["ionic"],
+            "Capacitor": ["capacitor"],
+            "Cordova": ["cordova"],
+            "Flutter": ["flutter"],
+            "React Native": ["react-native", "react native"],
+            "Swift": ["swift"],
+            "Kotlin": ["kotlin"],
+            "Unity": ["unity"],
+            "Unreal Engine": ["unreal"],
+            "Godot": ["godot"],
+            "Electron": ["electron"],
+            "Tauri": ["tauri"],
+            "NW.js": ["nw.js", "nwjs"],
+            "Deno": ["deno"],
+            "Bun": ["bun"],
+            "Vite": ["vite"],
+            "Parcel": ["parcel"],
+            "Rollup": ["rollup"],
+            "esbuild": ["esbuild"],
+            "SWC": ["swc"],
+            "Rome": ["rome"],
+            "Prettier": ["prettier"],
+            "Husky": ["husky"],
+            "Storybook": ["storybook"],
+            "Nx": ["nx"],
+            "Turborepo": ["turborepo"],
+            "Lerna": ["lerna"],
+            "pnpm": ["pnpm"],
+            "Yarn": ["yarn"],
+            "npm": ["npm"],
+            "Astro": ["astro"],
+            "Remix": ["remix"],
+            "SolidJS": ["solid-js", "solidjs"],
+            "Preact": ["preact"],
+            "Qwik": ["qwik"],
+            "htmx": ["htmx"],
+            "Alpine.js": ["alpine.js", "alpinejs"],
+            "Hotwire": ["hotwire", "turbo", "stimulus"],
+            "LiveView": ["liveview"],
+            "Livewire": ["livewire"],
+            "Inertia.js": ["inertia", "inertiajs"],
+            "tRPC": ["trpc"],
+            "Prisma": ["prisma"],
+            "Sequelize": ["sequelize"],
+            "TypeORM": ["typeorm"],
+            "Mongoose": ["mongoose"],
+            "Drizzle": ["drizzle-orm", "drizzle"],
+            "Supabase": ["supabase"],
+            "Hasura": ["hasura"],
+            "Directus": ["directus"],
+            "Strapi": ["strapi"],
+            "KeystoneJS": ["keystone"],
+            "Payload CMS": ["payload cms", "payload"],
+            "Craft CMS": ["craft cms", "craft"],
+            "Statamic": ["statamic"],
+            "Kirby": ["kirby"],
+            "Wagtail": ["wagtail"],
+            "Umbraco": ["umbraco"],
+            "Kentico": ["kentico"],
+            "Sitecore": ["sitecore"],
+            "Adobe Experience Manager": ["aem", "adobe experience manager"],
+            "Contentstack": ["contentstack"],
+            "Storyblok": ["storyblok"],
+            "DatoCMS": ["datocms", "dato cms"],
+            "Prismic": ["prismic"],
+            "Builder.io": ["builder.io"],
+            "Webflow CMS": ["webflow cms"],
+            "Plasmic": ["plasmic"],
+            "Framer": ["framer"],
+            "Figma": ["figma"],
+            "Sketch": ["sketch"],
+            "Adobe XD": ["adobe xd", "xd"],
+            "InVision": ["invision"],
+            "Zeplin": ["zeplin"],
+            "Abstract": ["abstract"],
+            "Miro": ["miro"],
+            "Notion": ["notion"],
+            "Airtable": ["airtable"],
+            "Coda": ["coda"],
+            "Monday": ["monday"],
+            "Asana": ["asana"],
+            "Trello": ["trello"],
+            "Jira": ["jira"],
+            "Linear": ["linear"],
+            "ClickUp": ["clickup"],
+            "Basecamp": ["basecamp"],
+            "Slack": ["slack"],
+            "Discord": ["discord"],
+            "Microsoft Teams": ["teams", "microsoft teams"],
+            "Google Workspace": ["google workspace"],
+            "Microsoft 365": ["microsoft 365", "office 365"],
+            "Zoom": ["zoom"],
+            "Google Meet": ["google meet", "meet"],
+            "Microsoft Teams": ["teams", "microsoft teams"],
+            "WebEx": ["webex"],
+            "GoToMeeting": ["gotomeeting"],
+            "BlueJeans": ["bluejeans"],
+            "Whereby": ["whereby"],
+            "Calendly": ["calendly"],
+            "Google Calendar": ["google calendar"],
+            "Microsoft Outlook": ["outlook"],
+            "Salesforce": ["salesforce"],
+            "HubSpot": ["hubspot"],
+            "Marketo": ["marketo"],
+            "Mailchimp": ["mailchimp"],
+            "Klaviyo": ["klaviyo"],
+            "Brevo": ["brevo", "sendinblue"],
+            "ActiveCampaign": ["activecampaign"],
+            "ConvertKit": ["convertkit"],
+            "Constant Contact": ["constant contact"],
+            "Campaign Monitor": ["campaign monitor"],
+            "GetResponse": ["getresponse"],
+            "AWeber": ["aweber"],
+            "Drip": ["drip"],
+            "Omnisend": ["omnisend"],
+            "Iterable": ["iterable"],
+            "Customer.io": ["customer.io"],
+            "Segment": ["segment"],
+            "Google Tag Manager": ["gtm", "google tag manager"],
+            "Tealium": ["tealium"],
+            "Ensighten": ["ensighten"],
+            "Adobe Analytics": ["adobe analytics"],
+            "Matomo": ["matomo", "piwik"],
+            "Plausible": ["plausible"],
+            "Fathom": ["fathom"],
+            "Simple Analytics": ["simple analytics"],
+            "Heap": ["heap"],
+            "FullStory": ["fullstory"],
+            "LogRocket": ["logrocket"],
+            "Mouseflow": ["mouseflow"],
+            "Crazy Egg": ["crazy egg", "crazyegg"],
+            "Optimizely": ["optimizely"],
+            "VWO": ["vwo", "visual website optimizer"],
+            "AB Tasty": ["ab tasty", "abtasty"],
+            "Convert": ["convert.com"],
+            "Unbounce": ["unbounce"],
+            "Instapage": ["instapage"],
+            "Leadpages": ["leadpages"],
+            "Landingi": ["landingi"],
+            "Webflow": ["webflow"],
+            "Bubble": ["bubble.io", "bubble"],
+            "Glide": ["glide"],
+            "Adalo": ["adalo"],
+            "Softr": ["softr"],
+            "Carrd": ["carrd"],
+            "Tilda": ["tilda"],
+            "Readymag": ["readymag"],
+            "Framer": ["framer"],
+            "Squarespace": ["squarespace"],
+            "Wix": ["wix"],
+            "Shopify": ["shopify"],
+            "BigCommerce": ["bigcommerce"],
+            "WooCommerce": ["woocommerce"],
+            "Magento": ["magento"],
+            "PrestaShop": ["prestashop"],
+            "OpenCart": ["opencart"],
+            "Salesforce Commerce Cloud": ["salesforce commerce", "demandware"],
+            "Adobe Commerce": ["adobe commerce"],
+            "Swell": ["swell.is", "swell"],
+            "Medusa": ["medusajs", "medusa"],
+            "CommerceJS": ["commerce.js", "commercejs"],
+            "Snipcart": ["snipcart"],
+            "Stripe": ["stripe"],
+            "PayPal": ["paypal"],
+            "Square": ["square"],
+            "Adyen": ["adyen"],
+            "Braintree": ["braintree"],
+            "Klarna": ["klarna"],
+            "Affirm": ["affirm"],
+            "Afterpay": ["afterpay"],
+            "Clearpay": ["clearpay"],
+            "Zip": ["zip"],
+            "Sezzle": ["sezzle"],
+            "Amazon Pay": ["amazon pay"],
+            "Google Pay": ["google pay"],
+            "Apple Pay": ["apple pay"],
+            "Shop Pay": ["shop pay"],
+            "Bolt": ["bolt"],
+            "Fast": ["fast"],
+            "Algolia": ["algolia"],
+            "Elasticsearch": ["elasticsearch"],
+            "Meilisearch": ["meilisearch"],
+            "Typesense": ["typesense"],
+            "Solr": ["solr"],
+            "Coveo": ["coveo"],
+            "Constructor.io": ["constructor.io"],
+            "Klevu": ["klevu"],
+            "Searchspring": ["searchspring"],
+            "Nosto": ["nosto"],
+            "Dynamic Yield": ["dynamic yield"],
+            "Bloomreach": ["bloomreach"],
+            "Sitecore": ["sitecore"],
+            "Contentful": ["contentful"],
+            "Sanity": ["sanity"],
+            "Strapi": ["strapi"],
+            "Contentstack": ["contentstack"],
+            "Storyblok": ["storyblok"],
+            "Prismic": ["prismic"],
+            "DatoCMS": ["datocms"],
+            "Kontent.ai": ["kontent.ai", "kentico kontent"],
+            "Agility CMS": ["agility cms"],
+            "Builder.io": ["builder.io"],
+            "Plasmic": ["plasmic"],
+            "Webiny": ["webiny"],
+            "Ghost": ["ghost"],
+            "WordPress": ["wordpress"],
+            "Drupal": ["drupal"],
+            "Joomla": ["joomla"],
+            "TYPO3": ["typo3"],
+            "Umbraco": ["umbraco"],
+            "Sitefinity": ["sitefinity"],
+            "Kentico": ["kentico"],
+            "Episerver": ["episerver", "optimizely cms"],
+            "Adobe Experience Manager": ["aem", "adobe experience manager"],
+            "Sitecore": ["sitecore"],
+            "Acquia": ["acquia"],
+            "Pantheon": ["pantheon"],
+            "WP Engine": ["wp engine", "wpengine"],
+            "Kinsta": ["kinsta"],
+            "Flywheel": ["flywheel"],
+            "Cloudways": ["cloudways"],
+            "Digital Ocean": ["digitalocean", "digital ocean"],
+            "Linode": ["linode"],
+            "Vultr": ["vultr"],
+            "AWS": ["aws", "amazon web services", "ec2", "s3"],
+            "Google Cloud": ["gcp", "google cloud"],
+            "Azure": ["azure", "microsoft azure"],
+            "Heroku": ["heroku"],
+            "Netlify": ["netlify"],
+            "Vercel": ["vercel"],
+            "Cloudflare": ["cloudflare"],
+            "Fastly": ["fastly"],
+            "Akamai": ["akamai"],
+            "Imperva": ["imperva"],
+            "Sucuri": ["sucuri"],
+            "Wordfence": ["wordfence"],
+            "Cloudflare Workers": ["cloudflare workers"],
+            "AWS Lambda": ["lambda"],
+            "Azure Functions": ["azure functions"],
+            "Google Cloud Functions": ["cloud functions"],
+            "Firebase": ["firebase"],
+            "Supabase": ["supabase"],
+            "Nhost": ["nhost"],
+            "Appwrite": ["appwrite"],
+            "Back4App": ["back4app"],
+            "Parse": ["parse"],
+            "Realm": ["realm"],
+            "Amplify": ["amplify"],
+            "Hasura": ["hasura"],
+            "Neon": ["neon.tech", "neon"],
+            "PlanetScale": ["planetscale"],
+            "Xata": ["xata"],
+            "Turso": ["turso"],
+            "Upstash": ["upstash"],
+            "Fauna": ["fauna"],
+            "Convex": ["convex"],
+            "Deno Deploy": ["deno deploy"],
+            "Cloudflare Pages": ["cloudflare pages"],
+            "Cloudflare Workers": ["cloudflare workers"],
+            "Fly.io": ["fly.io"],
+            "Railway": ["railway"],
+            "Render": ["render"],
+            "Koyeb": ["koyeb"],
+            "Qovery": ["qovery"],
+            "Northflank": ["northflank"],
+            "Porter": ["porter"],
+            "Coolify": ["coolify"],
+            "Dokku": ["dokku"],
+            "Caprover": ["caprover"],
+            "Kubernetes": ["kubernetes", "k8s"],
+            "Docker": ["docker"],
+            "Podman": ["podman"],
+            "Nomad": ["nomad"],
+            "Terraform": ["terraform"],
+            "Pulumi": ["pulumi"],
+            "Ansible": ["ansible"],
+            "Chef": ["chef"],
+            "Puppet": ["puppet"],
+            "Salt": ["salt", "saltstack"],
+            "GitHub Actions": ["github actions"],
+            "GitLab CI": ["gitlab ci"],
+            "CircleCI": ["circleci"],
+            "Travis CI": ["travis ci"],
+            "Jenkins": ["jenkins"],
+            "TeamCity": ["teamcity"],
+            "Bamboo": ["bamboo"],
+            "Bitbucket Pipelines": ["bitbucket pipelines"],
+            "Azure DevOps": ["azure devops"],
+            "AWS CodePipeline": ["codepipeline"],
+            "Google Cloud Build": ["cloud build"],
+            "Drone": ["drone.io", "drone"],
+            "Concourse": ["concourse"],
+            "Argo CD": ["argo cd", "argocd"],
+            "Flux": ["flux"],
+            "Spinnaker": ["spinnaker"],
+            "Harness": ["harness"],
+            "Octopus Deploy": ["octopus deploy"],
+            "Buildkite": ["buildkite"],
+            "Semaphore": ["semaphore"],
+            "Codefresh": ["codefresh"],
+            "Buddy": ["buddy"],
+            "Appveyor": ["appveyor"],
+            "CodeShip": ["codeship"],
+            "Wercker": ["wercker"],
+            "Shippable": ["shippable"],
+            "Nevercode": ["nevercode"],
+            "Codemagic": ["codemagic"],
+            "Bitrise": ["bitrise"],
+            "App Center": ["app center"],
+            "Firebase App Distribution": ["firebase app distribution"],
+            "TestFlight": ["testflight"],
+            "Play Console": ["play console"],
+            "Expo": ["expo"],
+            "Sentry": ["sentry"],
+            "Bugsnag": ["bugsnag"],
+            "Rollbar": ["rollbar"],
+            "LogRocket": ["logrocket"],
+            "Datadog": ["datadog"],
+            "New Relic": ["new relic", "newrelic"],
+            "Dynatrace": ["dynatrace"],
+            "AppDynamics": ["appdynamics"],
+            "Elastic APM": ["elastic apm"],
+            "Prometheus": ["prometheus"],
+            "Grafana": ["grafana"],
+            "Kibana": ["kibana"],
+            "Loki": ["loki"],
+            "Jaeger": ["jaeger"],
+            "Zipkin": ["zipkin"],
+            "OpenTelemetry": ["opentelemetry"],
+            "Instana": ["instana"],
+            "Lightstep": ["lightstep"],
+            "Honeycomb": ["honeycomb"],
+            "Splunk": ["splunk"],
+            "Sumo Logic": ["sumo logic"],
+            "Logz.io": ["logz.io"],
+            "Loggly": ["loggly"],
+            "Papertrail": ["papertrail"],
+            "Graylog": ["graylog"],
+            "Fluentd": ["fluentd"],
+            "Logstash": ["logstash"],
+            "Vector": ["vector"],
+            "OpenSearch": ["opensearch"],
+            "Algolia": ["algolia"],
+            "Meilisearch": ["meilisearch"],
+            "Typesense": ["typesense"],
+            "Elasticsearch": ["elasticsearch"],
+            "Solr": ["solr"],
+            "Vespa": ["vespa"],
+            "Weaviate": ["weaviate"],
+            "Pinecone": ["pinecone"],
+            "Qdrant": ["qdrant"],
+            "Milvus": ["milvus"],
+            "Chroma": ["chroma"],
+            "LanceDB": ["lancedb"],
+            "OpenAI": ["openai"],
+            "Anthropic": ["anthropic", "claude"],
+            "Cohere": ["cohere"],
+            "Hugging Face": ["huggingface", "hugging face"],
+            "Replicate": ["replicate"],
+            "Stability AI": ["stability.ai", "stability ai"],
+            "Midjourney": ["midjourney"],
+            "Runway": ["runway"],
+            "LangChain": ["langchain"],
+            "LlamaIndex": ["llamaindex"],
+            "Vercel AI SDK": ["vercel ai sdk"],
+            "Fixie": ["fixie"],
+            "Perplexity": ["perplexity"],
+            "Groq": ["groq"],
+            "Together AI": ["together.ai", "together ai"],
+            "Mistral AI": ["mistral.ai", "mistral ai"],
+            "Ollama": ["ollama"],
+            "LocalAI": ["localai", "local ai"],
+            "LM Studio": ["lm studio"],
+            "Jan": ["jan.ai", "jan"],
+            "Bedrock": ["bedrock"],
+            "Vertex AI": ["vertex ai"],
+            "Azure OpenAI": ["azure openai"],
+            "Gemini": ["gemini"],
+            "GPT": ["gpt"],
+            "DALL-E": ["dall-e", "dalle"],
+            "Stable Diffusion": ["stable diffusion"],
+            "Midjourney": ["midjourney"],
+            "Firefly": ["firefly"],
+            "Imagen": ["imagen"],
+            "Claude": ["claude"],
+            "Llama": ["llama"],
+            "Mixtral": ["mixtral"],
+            "Falcon": ["falcon"],
+            "Whisper": ["whisper"],
+            "TensorFlow": ["tensorflow"],
+            "PyTorch": ["pytorch"],
+            "JAX": ["jax"],
+            "Keras": ["keras"],
+            "scikit-learn": ["scikit-learn", "sklearn"],
+            "XGBoost": ["xgboost"],
+            "LightGBM": ["lightgbm"],
+            "CatBoost": ["catboost"],
+            "Pandas": ["pandas"],
+            "NumPy": ["numpy"],
+            "SciPy": ["scipy"],
+            "Matplotlib": ["matplotlib"],
+            "Seaborn": ["seaborn"],
+            "Plotly": ["plotly"],
+            "D3.js": ["d3.js", "d3"],
+            "Three.js": ["three.js", "threejs"],
+            "Babylon.js": ["babylon.js", "babylonjs"],
+            "PlayCanvas": ["playcanvas"],
+            "Pixi.js": ["pixi.js", "pixijs"],
+            "p5.js": ["p5.js", "p5js"],
+            "Paper.js": ["paper.js", "paperjs"],
+            "Fabric.js": ["fabric.js", "fabricjs"],
+            "Chart.js": ["chart.js", "chartjs"],
+            "Highcharts": ["highcharts"],
+            "ApexCharts": ["apexcharts"],
+            "ECharts": ["echarts"],
+            "Recharts": ["recharts"],
+            "Victory": ["victory"],
+            "Nivo": ["nivo"],
+            "Visx": ["visx"],
+            "Vega": ["vega"],
+            "Vega-Lite": ["vega-lite"],
+            "Observable": ["observable"],
+            "Leaflet": ["leaflet"],
+            "Mapbox": ["mapbox"],
+            "OpenLayers": ["openlayers"],
+            "Google Maps": ["google maps", "googlemaps"],
+            "Maplibre": ["maplibre"],
+            "Cesium": ["cesium"],
+            "Deck.gl": ["deck.gl", "deckgl"],
+            "Kepler.gl": ["kepler.gl", "keplergl"],
+            "ArcGIS": ["arcgis"],
+            "QGIS": ["qgis"],
+            "Turf.js": ["turf.js", "turfjs"],
+            "Proj4js": ["proj4js"],
+            "Nominatim": ["nominatim"],
+            "OpenStreetMap": ["openstreetmap"],
+            "HERE": ["here maps", "here"],
+            "TomTom": ["tomtom"],
+            "Bing Maps": ["bing maps"],
+            "Mapbox GL": ["mapbox gl"],
+            "Tangram": ["tangram"],
+            "Maptiler": ["maptiler"],
+            "Stadia Maps": ["stadia maps"],
+            "Thunderforest": ["thunderforest"],
+            "Carto": ["carto"],
+            "Mapzen": ["mapzen"],
+            "Jawg": ["jawg"],
+            "Geoapify": ["geoapify"],
+            "Foursquare": ["foursquare"],
+            "Factual": ["factual"],
+            "Radar": ["radar.io", "radar"],
+            "Esri": ["esri"],
+            "Mapillary": ["mapillary"],
+            "Strava": ["strava"],
+            "Garmin": ["garmin"],
+            "Komoot": ["komoot"],
+            "Peloton": ["peloton"],
+            "Zwift": ["zwift"],
+            "Fitbit": ["fitbit"],
+            "Apple Health": ["apple health"],
+            "Google Fit": ["google fit"],
+            "Samsung Health": ["samsung health"],
+            "Withings": ["withings"],
+            "Oura": ["oura"],
+            "Whoop": ["whoop"],
+            "Strava": ["strava"],
+            "Garmin": ["garmin"],
+            "Polar": ["polar"],
+            "Suunto": ["suunto"],
+            "Coros": ["coros"],
+            "MyFitnessPal": ["myfitnesspal"],
+            "Cronometer": ["cronometer"],
+            "Lifesum": ["lifesum"],
+            "Noom": ["noom"],
+            "Weight Watchers": ["weight watchers", "ww"],
+            "Headspace": ["headspace"],
+            "Calm": ["calm"],
+            "Waking Up": ["waking up"],
+            "Insight Timer": ["insight timer"],
+            "Peloton": ["peloton"],
+            "Zwift": ["zwift"],
+            "TrainerRoad": ["trainerroad"],
+            "Sufferfest": ["sufferfest"],
+            "Strava": ["strava"],
+            "Komoot": ["komoot"],
+            "AllTrails": ["alltrails"],
+            "Wikiloc": ["wikiloc"],
+            "Gaia GPS": ["gaia gps"],
+            "Trailforks": ["trailforks"],
+            "Relive": ["relive"],
+            "Ride with GPS": ["ride with gps"],
+            "Wahoo": ["wahoo"],
+            "Hammerhead": ["hammerhead"],
+            "Karoo": ["karoo"],
+            "Garmin": ["garmin"],
+            "Suunto": ["suunto"],
+            "Polar": ["polar"],
+            "Coros": ["coros"],
+            "Fitbit": ["fitbit"],
+            "Apple Watch": ["apple watch"],
+            "Samsung Galaxy Watch": ["galaxy watch"],
+            "Withings": ["withings"],
+            "Oura": ["oura"],
+            "Whoop": ["whoop"],
+            "Biostrap": ["biostrap"],
+            "Levels": ["levels"],
+            "Dexcom": ["dexcom"],
+            "Freestyle Libre": ["freestyle libre"],
+            "Medtronic": ["medtronic"],
+            "Omron": ["omron"],
+            "Withings": ["withings"],
+            "iHealth": ["ihealth"],
+            "Qardio": ["qardio"],
+            "Omada": ["omada"],
+            "Livongo": ["livongo"],
+            "Virta": ["virta"],
+            "Noom": ["noom"],
+            "Weight Watchers": ["weight watchers", "ww"],
+            "Headspace": ["headspace"],
+            "Calm": ["calm"],
+            "Waking Up": ["waking up"],
+            "Insight Timer": ["insight timer"],
+            "Talkspace": ["talkspace"],
+            "BetterHelp": ["betterhelp"],
+            "Cerebral": ["cerebral"],
+            "Lyra": ["lyra"],
+            "Ginger": ["ginger"],
+            "Spring Health": ["spring health"],
+            "Modern Health": ["modern health"],
+            "Teladoc": ["teladoc"],
+            "Amwell": ["amwell"],
+            "Doctor on Demand": ["doctor on demand"],
+            "MDLIVE": ["mdlive"],
+            "Zocdoc": ["zocdoc"],
+            "One Medical": ["one medical"],
+            "Forward": ["forward"],
+            "Carbon Health": ["carbon health"],
+            "Parsley Health": ["parsley health"],
+            "Tia": ["tia"],
+            "Kindbody": ["kindbody"],
+            "Maven": ["maven"],
+            "Ro": ["ro"],
+            "Hims": ["hims"],
+            "Hers": ["hers"],
+            "Nurx": ["nurx"],
+            "Pill Club": ["pill club"],
+            "Simple Health": ["simple health"],
+            "Lemonaid": ["lemonaid"],
+            "GoodRx": ["goodrx"],
+            "Blink Health": ["blink health"],
+            "Capsule": ["capsule"],
+            "Alto": ["alto"],
+            "PillPack": ["pillpack"],
+            "Truepill": ["truepill"],
+            "NowRx": ["nowrx"],
+            "ScriptDash": ["scriptdash"],
+            "Medly": ["medly"],
+            "Instacart": ["instacart"],
+            "DoorDash": ["doordash"],
+            "Uber Eats": ["uber eats"],
+            "Grubhub": ["grubhub"],
+            "Postmates": ["postmates"],
+            "Caviar": ["caviar"],
+            "Seamless": ["seamless"],
+            "Deliveroo": ["deliveroo"],
+            "Just Eat": ["just eat"],
+            "Delivery Hero": ["delivery hero"],
+            "Glovo": ["glovo"],
+            "Rappi": ["rappi"],
+            "iFood": ["ifood"],
+            "Swiggy": ["swiggy"],
+            "Zomato": ["zomato"],
+            "Uber": ["uber"],
+            "Lyft": ["lyft"],
+            "Bolt": ["bolt"],
+            "Grab": ["grab"],
+            "Gojek": ["gojek"],
+            "Didi": ["didi"],
+            "Ola": ["ola"],
+            "Careem": ["careem"],
+            "BlaBlaCar": ["blablacar"],
+            "Via": ["via"],
+            "Citymapper": ["citymapper"],
+            "Transit": ["transit"],
+            "Moovit": ["moovit"],
+            "Lime": ["lime"],
+            "Bird": ["bird"],
+            "Spin": ["spin"],
+            "Tier": ["tier"],
+            "Voi": ["voi"],
+            "Dott": ["dott"],
+            "Superpedestrian": ["superpedestrian"],
+            "Neuron": ["neuron"],
+            "Beam": ["beam"],
+            "Nextbike": ["nextbike"],
+            "Mobike": ["mobike"],
+            "Jump": ["jump"],
+            "Citi Bike": ["citi bike"],
+            "Divvy": ["divvy"],
+            "Capital Bikeshare": ["capital bikeshare"],
+            "Bluebikes": ["bluebikes"],
+            "Bay Wheels": ["bay wheels"],
+            "Biki": ["biki"],
+            "Bixi": ["bixi"],
+            "Vélib": ["velib"],
+            "Santander Cycles": ["santander cycles"],
+            "Call a Bike": ["call a bike"],
+            "Donkey Republic": ["donkey republic"],
+            "Lime": ["lime"],
+            "Bird": ["bird"],
+            "Spin": ["spin"],
+            "Tier": ["tier"],
+            "Voi": ["voi"],
+            "Dott": ["dott"],
+            "Superpedestrian": ["superpedestrian"],
+            "Neuron": ["neuron"],
+            "Beam": ["beam"],
+            "Nextbike": ["nextbike"],
+            "Mobike": ["mobike"],
+            "Jump": ["jump"],
+            "Citi Bike": ["citi bike"],
+            "Divvy": ["divvy"],
+            "Capital Bikeshare": ["capital bikeshare"],
+            "Bluebikes": ["bluebikes"],
+            "Bay Wheels": ["bay wheels"],
+            "Biki": ["biki"],
+            "Bixi": ["bixi"],
+            "Vélib": ["velib"],
+            "Santander Cycles": ["santander cycles"],
+            "Call a Bike": ["call a bike"],
+            "Donkey Republic": ["donkey republic"]
         }
-    
+
+        # Detect technologies
+        technologies = []
+        html_str = str(soup).lower()
+
+        for tech, patterns in tech_patterns.items():
+            for pattern in patterns:
+                if pattern.lower() in html_str:
+                    technologies.append(tech)
+                    break
+
+        # Remove duplicates
+        technologies = list(set(technologies))
+
+        return {
+            "theme": theme,
+            "keywords": keywords,
+            "technologies": technologies
+        }
     except Exception as e:
         logger.error(f"Error analyzing content: {e}")
         return {
             "theme": "Unknown",
             "keywords": [],
-            "technologies": [],
-            "hashtags": []
+            "technologies": []
         }
 
+def capture_thumbnail(url, domain_name):
+    """Capture a thumbnail of the website."""
+    try:
+        # Since we can't use Selenium or similar tools with the resource constraints,
+        # we'll try to find and use the largest image on the page as a thumbnail
+        headers = {
+            'User-Agent': USER_AGENT
+        }
+        response = requests.get(url, headers=headers, timeout=HTTP_TIMEOUT)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
 
-def generate_html(portfolio_data):
-    """Generate HTML for the portfolio page."""
-    # Calculate statistics for the portfolio
-    total_websites = len(portfolio_data)
-    most_common_theme = find_most_common_theme(portfolio_data)
-    tech_tags = generate_tech_tags(portfolio_data)
-    current_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        # Try to find the largest image
+        largest_image = None
+        max_size = 0
 
-    # Build the HTML with triple quotes and no f-string for the CSS part
-    html_head = """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Website Portfolio Analysis</title>
-        <script src="image-preloader.js"></script>
-        <script src="script.js"></script>
-        <style>
-            body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                margin: 0;
-                padding: 20px;
-                background-color: #f5f5f5;
-                color: #333;
-            }
-            h1 {
-                text-align: center;
-                margin-bottom: 30px;
-                color: #2c3e50;
-            }
-            .portfolio-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-                gap: 25px;
-                margin: 0 auto;
-                max-width: 1200px;
-            }
-/* Te style są już zaktualizowane w poprzedniej zmianie */
-            .portfolio-item {
-                background-color: white;
-                border-radius: 8px;
-                overflow: hidden;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                transition: transform 0.3s ease, box-shadow 0.3s ease;
-                display: flex;
-                flex-direction: column;
-            }
-            .portfolio-item:hover {
-                transform: translateY(-5px);
-                box-shadow: 0 10px 20px rgba(0,0,0,0.15);
-            }
-            .image-container {
-                width: 100%;
-                padding-top: 66.67%; /* Proporcja 3:2 */
-                position: relative;
-                overflow: hidden;
-                border-bottom: 1px solid #eee;
-                background-color: #f5f5f5;
-            }
-            .thumbnail, .thumbnail-iframe {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                object-fit: cover;
-                border: none;
-            }
-            /* Stylowanie dla kontenera z aktywnym iframe */
-            .iframe-active {
-                background-color: #fff;
-            }
-            /* Styl dla iframe aby zachował proporcje i poprawnie wyświetlał zawartość */
-            .thumbnail-iframe {
-                overflow: hidden;
-                background-color: white;
-                transform: scale(1.0);
-                transform-origin: 0 0;
-            }
-            .content {
-                padding: 15px;
-            }
-            .domain {
-                font-size: 18px;
-                font-weight: 600;
-                margin-bottom: 10px;
-                color: #2c3e50;
-            }
-            .theme {
-                font-weight: 500;
-                margin-bottom: 8px;
-                color: #3498db;
-            }
-            .description, .technologies {
-                margin-bottom: 8px;
-                font-size: 14px;
-                color: #666;
-            }
-            .hashtags {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 5px;
-                margin-top: 10px;
-            }
-            .hashtag {
-                background-color: #e1f5fe;
-                color: #0288d1;
-                padding: 4px 8px;
-                border-radius: 4px;
-                font-size: 12px;
-            }
-            .date-info {
-                text-align: center;
-                margin-top: 30px;
-                color: #7f8c8d;
-                font-size: 14px;
-            }
-            a {
-                color: #2c3e50;
-                text-decoration: none;
-            }
-            a:hover {
-                text-decoration: underline;
-            }
-            .header {
-                text-align: center;
-                margin-bottom: 40px;
-            }
-            .stats {
-                margin: 20px auto;
-                max-width: 800px;
-                background-color: white;
-                padding: 20px;
-                border-radius: 8px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            }
-            .search-container {
-                margin: 0 auto 30px;
-                max-width: 600px;
-                text-align: center;
-            }
-            #searchInput {
-                width: 100%;
-                padding: 12px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                font-size: 16px;
-                box-sizing: border-box;
-            }
-            .tech-tag {
-                display: inline-block;
-                background-color: #f1f1f1;
-                padding: 4px 8px;
-                margin-right: 5px;
-                margin-bottom: 5px;
-                border-radius: 4px;
-                font-size: 12px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <h1>Website Portfolio Analysis</h1>
-            <p>Automated analysis of websites to identify themes, technologies, and content patterns</p>
-        </div>
+        # Check for open graph image first
+        og_image = soup.find('meta', property='og:image')
+        if og_image and og_image.get('content'):
+            img_url = og_image.get('content')
+            if not img_url.startswith(('http://', 'https://')):
+                base_url = urlparse(url)
+                img_url = f"{base_url.scheme}://{base_url.netloc}{img_url}"
 
-        <div class="search-container">
-            <input type="text" id="searchInput" placeholder="Search by domain, technology, theme, or keywords...">
-        </div>
-    """
+            try:
+                img_response = requests.get(img_url, headers=headers, timeout=HTTP_TIMEOUT)
+                img_response.raise_for_status()
+                img = Image.open(BytesIO(img_response.content))
 
-    # Now add the stats section with proper variable substitution
-    stats_section = f"""
-        <div class="stats">
-            <h2>Portfolio Stats</h2>
-            <p>Total websites analyzed: <strong>{total_websites}</strong></p>
-            <p>Most common theme: <strong>{most_common_theme}</strong></p>
-            <p>Most used technologies:</p>
-            <div>
-                {tech_tags}
-            </div>
-        </div>
+                # Save thumbnail
+                os.makedirs(THUMBNAILS_DIR, exist_ok=True)
+                thumbnail_path = os.path.join(THUMBNAILS_DIR, f"{domain_name}.jpg")
+                img = img.convert('RGB')  # Convert to RGB for JPG
+                img.thumbnail((300, 200))  # Resize to thumbnail
+                img.save(thumbnail_path, 'JPEG')
+                return thumbnail_path
+            except Exception as e:
+                logger.warning(f"Could not use og:image for {url}: {e}")
 
-        <div class="portfolio-grid">
-    """
+        # If og:image fails, try to find the largest image
+        for img in soup.find_all('img'):
+            src = img.get('src')
+            if not src:
+                continue
 
-    # Build the portfolio items
-    portfolio_items = ""
-    for site in portfolio_data:
-        domain = site.get("domain", "Unknown")
-        url = site.get("url", "#")
-        domain_hash = site.get("domain_hash", "unknown")
-        thumbnail = os.path.join("thumbnails", f"{domain_hash}.jpg")
-        color = get_color_for_domain(domain)
-        initials = get_initials(domain)
-        theme = site.get("theme", "Unknown")
-        keywords = " ".join(site.get("keywords", []))
-        technologies = " ".join(site.get("technologies", []))
-        technologies_list = ", ".join(site.get("technologies", ["Not detected"]))
-        description = generate_description(site)
-        hashtags_html = "".join([f'<span class="hashtag">{tag}</span>' for tag in site.get("hashtags", [])])
+            # Convert relative URLs to absolute
+            if not src.startswith(('http://', 'https://')):
+                base_url = urlparse(url)
+                src = f"{base_url.scheme}://{base_url.netloc}{src}"
 
-        # Poprawione kodowanie SVG używając apostrofów zamiast podwójnych cudzysłowów
-        portfolio_items += f"""
-            <div class="portfolio-item" data-domain="{domain}" data-theme="{theme}" data-keywords="{keywords}" data-tech="{technologies}">
-                <div class="image-container">
-                    <img src="{thumbnail}" alt="{domain}" class="thumbnail" 
-                        onerror="
-                        if (!this.hasAttribute('data-tried-iframe')) {{
-                          this.setAttribute('data-tried-iframe', 'true');
+            try:
+                img_response = requests.get(src, headers=headers, timeout=HTTP_TIMEOUT)
+                img_response.raise_for_status()
+                img = Image.open(BytesIO(img_response.content))
 
-                          // Utwórz iframe bezpośrednio w kontenerze obrazu
-                          var iframe = document.createElement('iframe');
-                          iframe.src = '{url}';
-                          iframe.className = 'thumbnail-iframe';
-                          iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts');
-                          iframe.setAttribute('loading', 'lazy');
+                # Calculate image size
+                size = img.width * img.height
 
-                          // Obsługa błędu iframe
-                          iframe.onerror = () => {{
-                            iframe.remove();
-                            this.style.display = 'block';
-                            this.src = 'data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'300\\' height=\\'200\\' viewBox=\\'0 0 300 200\\'><rect fill=\\'%23{color}\\' width=\\'300\\' height=\\'200\\'></rect><text fill=\\'%23fff\\' font-family=\\'Arial\\' font-size=\\'30\\' font-weight=\\'bold\\' text-anchor=\\'middle\\' x=\\'150\\' y=\\'110\\'>{initials}</text></svg>';
-                          }};
+                # Update largest image if this one is bigger
+                if size > max_size:
+                    max_size = size
+                    largest_image = img
+            except Exception:
+                continue
 
-                          // Dodaj klasę iframe-active do kontenera obrazu dla ewentualnego stylowania
-                          this.parentNode.classList.add('iframe-active');
+        # Save the largest image as thumbnail
+        if largest_image:
+            os.makedirs(THUMBNAILS_DIR, exist_ok=True)
+            thumbnail_path = os.path.join(THUMBNAILS_DIR, f"{domain_name}.jpg")
+            largest_image = largest_image.convert('RGB')  # Convert to RGB for JPG
+            largest_image.thumbnail((300, 200))  # Resize to thumbnail
+            largest_image.save(thumbnail_path, 'JPEG')
+            return thumbnail_path
 
-                          // Ukryj obraz i wstaw iframe przed nim
-                          this.style.display = 'none';
-                          this.parentNode.insertBefore(iframe, this);
-
-                          // Obsługa awarii ładowania iframe po timeout
-                          setTimeout(() => {{
-                            if (iframe.contentDocument && 
-                                (!iframe.contentDocument.body || 
-                                 iframe.contentDocument.body.innerHTML === '')) {{
-                              iframe.remove();
-                              this.style.display = 'block';
-                              this.src = 'data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'300\\' height=\\'200\\' viewBox=\\'0 0 300 200\\'><rect fill=\\'%23{color}\\' width=\\'300\\' height=\\'200\\'></rect><text fill=\\'%23fff\\' font-family=\\'Arial\\' font-size=\\'30\\' font-weight=\\'bold\\' text-anchor=\\'middle\\' x=\\'150\\' y=\\'110\\'>{initials}</text></svg>';
-                              this.parentNode.classList.remove('iframe-active');
-                            }}
-                          }}, 5000);
-                        }} else {{
-                          this.src = 'data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'300\\' height=\\'200\\' viewBox=\\'0 0 300 200\\'><rect fill=\\'%23{color}\\' width=\\'300\\' height=\\'200\\'></rect><text fill=\\'%23fff\\' font-family=\\'Arial\\' font-size=\\'30\\' font-weight=\\'bold\\' text-anchor=\\'middle\\' x=\\'150\\' y=\\'110\\'>{initials}</text></svg>';
-                        }}">
-                <div class="content">
-                    <div class="domain"><a href="{url}" target="_blank">{domain}</a></div>
-                    <div class="theme">{theme}</div>
-                    <div class="technologies">Technologies: {technologies_list}</div>
-                    <div class="description">
-                        {description}
-                    </div>
-                    <div class="hashtags">
-                        {hashtags_html}
-                    </div>
-                </div>
-                </div>
-            </div>
-        """
-
-    # Build the footer and script - use raw string for JavaScript
-    html_footer = f"""
-        </div>
-
-        <div class="date-info">
-            <p>Last updated: {current_date}</p>
-        </div>
-
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {{
-                const searchInput = document.getElementById('searchInput');
-                const portfolioItems = document.querySelectorAll('.portfolio-item');
-
-                searchInput.addEventListener('keyup', function() {{
-                    const searchTerm = this.value.toLowerCase();
-
-                    portfolioItems.forEach(item => {{
-                        const domain = item.getAttribute('data-domain').toLowerCase();
-                        const theme = item.getAttribute('data-theme').toLowerCase();
-                        const keywords = item.getAttribute('data-keywords').toLowerCase();
-                        const tech = item.getAttribute('data-tech').toLowerCase();
-
-                        if (domain.includes(searchTerm) || 
-                            theme.includes(searchTerm) || 
-                            keywords.includes(searchTerm) || 
-                            tech.includes(searchTerm)) {{
-                            item.style.display = 'block';
-                        }} else {{
-                            item.style.display = 'none';
-                        }}
-                    }});
-                }});
-            }});
-        </script>
-    </body>
-    </html>
-    """
-
-    # Combine all parts
-    return html_head + stats_section + portfolio_items + html_footer
-
+        # If no suitable image found, create a placeholder
+        return None
+    except Exception as e:
+        logger.error(f"Error capturing thumbnail for {url}: {e}")
+        return None
 
 def get_color_for_domain(domain):
     """Generate a consistent color hex code for a domain."""
@@ -616,7 +1011,6 @@ def get_color_for_domain(domain):
     hex_color = format(hash_value & 0xFFFFFF, '06x')
     return hex_color
 
-
 def get_initials(domain):
     """Get initials from domain name."""
     domain_name = domain.split('.')[0]
@@ -624,54 +1018,21 @@ def get_initials(domain):
         return domain_name[:2].upper()
     return domain_name.upper()
 
-
-def find_most_common_theme(portfolio_data):
-    """Find the most common theme in the portfolio data."""
-    themes = {}
-    for site in portfolio_data:
-        theme = site.get("theme", "Unknown")
-        themes[theme] = themes.get(theme, 0) + 1
-    
-    if not themes:
-        return "None"
-    
-    return max(themes.items(), key=lambda x: x[1])[0]
-
-
-def generate_tech_tags(portfolio_data):
-    """Generate HTML for most used technology tags."""
-    tech_counts = {}
-    for site in portfolio_data:
-        for tech in site.get("technologies", []):
-            tech_counts[tech] = tech_counts.get(tech, 0) + 1
-    
-    # Sort by count
-    sorted_techs = sorted(tech_counts.items(), key=lambda x: x[1], reverse=True)
-    
-    # Generate HTML tags for top 10 technologies
-    tags = ""
-    for tech, count in sorted_techs[:10]:
-        tags += f'<span class="tech-tag">{tech} ({count})</span>'
-    
-    return tags or "<span>No technologies detected</span>"
-
-
 def generate_description(site):
     """Generate a brief description from the site data."""
     keywords = site.get("keywords", [])
     if not keywords:
         return f"This appears to be a {site.get('theme', 'general').lower()} website."
-    
+
     keyword_text = ", ".join(keywords[:3])
     return f"This {site.get('theme', 'website').lower()} focuses on {keyword_text}."
-
 
 def init_git_repo():
     """Initialize or update git repository."""
     try:
         # Ensure output directory exists
         os.makedirs(OUTPUT_DIR, exist_ok=True)
-        
+
         # Check if it's already a git repo
         try:
             repo = git.Repo(GIT_REPO_PATH)
@@ -680,218 +1041,197 @@ def init_git_repo():
             # Initialize new repo
             repo = git.Repo.init(GIT_REPO_PATH)
             logger.info("Initialized new git repository")
-            
+
             # Add .gitignore
             with open(os.path.join(GIT_REPO_PATH, ".gitignore"), "w") as f:
-                f.write("*.log\n__pycache__/\n*.py[cod]\n*$py.class\n")
-            
+                f.write(
+                    "__pycache__/\n*.py[cod]\n*$py.class\n.env\n.venv\nenv/\nvenv/\nENV/\nenv.bak/\nvenv.bak/\n")
+
             # Initial commit
             repo.git.add(".")
             repo.git.commit("-m", "Initial commit")
-            logger.info("Created initial commit")
-        
-        # Check if remote exists
-        try:
-            remote_exists = GIT_REMOTE in [remote.name for remote in repo.remotes]
-            if not remote_exists:
-                logger.warning(f"Remote '{GIT_REMOTE}' does not exist. Please add it manually.")
-        except Exception as e:
-            logger.warning(f"Error checking git remote: {e}")
-        
+
         return repo
     except Exception as e:
         logger.error(f"Error initializing git repository: {e}")
         return None
 
+def commit_and_push_changes(repo):
+    """Commit and push changes to git repository."""
+    if not repo:
+        return
 
-def push_to_git():
-    """Commit changes and push to git repository."""
     try:
-        repo = git.Repo(GIT_REPO_PATH)
-        
         # Check if there are changes
         if not repo.is_dirty() and not repo.untracked_files:
             logger.info("No changes to commit")
             return
-        
+
         # Add all changes
         repo.git.add(".")
-        
-        # Commit
-        commit_message = f"Update portfolio on {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}"
+
+        # Commit changes
+        commit_message = f"Update portfolio data - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         repo.git.commit("-m", commit_message)
         logger.info(f"Committed changes: {commit_message}")
-        
-        # Push to remote if it exists
+
+        # Push to remote if configured
         try:
-            if GIT_REMOTE in [remote.name for remote in repo.remotes]:
-                repo.git.push(GIT_REMOTE, GIT_BRANCH)
-                logger.info(f"Pushed to {GIT_REMOTE}/{GIT_BRANCH}")
-            else:
-                logger.warning(f"Remote '{GIT_REMOTE}' not found. Could not push changes.")
+            origin = repo.remote(name=GIT_REMOTE)
+            origin.push(GIT_BRANCH)
+            logger.info(f"Pushed changes to {GIT_REMOTE}/{GIT_BRANCH}")
         except Exception as e:
-            logger.warning(f"Error pushing to remote: {e}")
-    
+            logger.warning(f"Could not push to remote: {e}")
     except Exception as e:
-        logger.error(f"Error in git operations: {e}")
+        logger.error(f"Error committing changes: {e}")
 
+def find_most_common_theme(portfolio_data):
+    """Find the most common theme in the portfolio data."""
+    themes = {}
+    for site in portfolio_data:
+        theme = site.get("theme", "Unknown")
+        themes[theme] = themes.get(theme, 0) + 1
 
-def run_portfolio_generation():
-    """Main function to run the portfolio generation process."""
-    logger.info("Starting portfolio generation process")
-    
-    # Ensure output directories exist
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    os.makedirs(THUMBNAILS_DIR, exist_ok=True)
-    
-    # Initialize git repository
-    repo = init_git_repo()
-    
-    # Load existing data if available
-    portfolio_data = []
-    if os.path.exists(DATA_FILE):
-        try:
-            with open(DATA_FILE, 'r', encoding='utf-8') as f:
-                portfolio_data = json.load(f)
-            logger.info(f"Loaded {len(portfolio_data)} existing entries from data file")
-        except Exception as e:
-            logger.error(f"Error loading existing data: {e}")
-    
-    # Create a dictionary for quick lookup of existing domains
-    existing_domains = {site["domain"]: site for site in portfolio_data}
-    
-    # Read domains from file
-    try:
-        with open(DOMAINS_FILE, 'r', encoding='utf-8') as f:
-            domains = [line.strip() for line in f if line.strip()]
-        logger.info(f"Loaded {len(domains)} domains from {DOMAINS_FILE}")
-    except Exception as e:
-        logger.error(f"Error loading domains file: {e}")
-        domains = []
-    
-    # Process each domain
-    new_domains = 0
-    updated_domains = 0
-    
-    for domain in domains:
-        try:
-            # Normalize URL
-            url = normalize_url(domain)
-            domain_name = urlparse(url).netloc
-            
-            # Create a hash of the domain name for filenames
-            domain_hash = hashlib.md5(domain_name.encode()).hexdigest()
-            
-            logger.info(f"Processing {domain_name}")
-            
-            # Check if we already have data for this domain
-            if domain_name in existing_domains:
-                # Skip if processed recently (less than 7 days ago)
-                last_updated = existing_domains[domain_name].get("last_updated", "")
-                if last_updated:
-                    try:
-                        last_date = datetime.datetime.strptime(last_updated, "%Y-%m-%d %H:%M:%S")
-                        days_since_update = (datetime.datetime.now() - last_date).days
-                        if days_since_update < 7:
-                            logger.info(f"Skipping {domain_name} - updated {days_since_update} days ago")
-                            continue
-                    except Exception:
-                        pass  # If date parsing fails, we'll just update anyway
-            
-            # Fetch content from the website
-            html_content = get_domain_content(url)
-            
-            if not html_content:
-                logger.warning(f"Could not fetch content for {domain_name}")
-                continue
-            
-            # Analyze the content
-            analysis = analyze_content(html_content)
-            
-            # Capture thumbnail
-            thumbnail_path = capture_thumbnail(url, domain_hash)
-            
-            # Create or update the site data
-            site_data = {
-                "domain": domain_name,
-                "domain_hash": domain_hash,
-                "url": url,
-                "theme": analysis.get("theme", "Unknown"),
-                "keywords": analysis.get("keywords", []),
-                "technologies": analysis.get("technologies", []),
-                "hashtags": analysis.get("hashtags", []),
-                "last_updated": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
-            
-            # Update existing entry or add new one
-            if domain_name in existing_domains:
-                for i, site in enumerate(portfolio_data):
-                    if site["domain"] == domain_name:
-                        portfolio_data[i] = site_data
-                        break
-                updated_domains += 1
-            else:
-                portfolio_data.append(site_data)
-                new_domains += 1
-            
-            # Save after each domain in case of interruptions
-            with open(DATA_FILE, 'w', encoding='utf-8') as f:
-                json.dump(portfolio_data, f, indent=2, ensure_ascii=False)
-            
-            # Don't hammer servers
-            time.sleep(2)
-        
-        except Exception as e:
-            logger.error(f"Error processing domain {domain}: {e}")
-    
-    # Sort portfolio by last updated date
-    portfolio_data.sort(key=lambda x: x.get("last_updated", ""), reverse=True)
-    
-    # Generate HTML
-    html_content = generate_html(portfolio_data)
-    
-    # Write HTML file
-    with open(HTML_OUTPUT, 'w', encoding='utf-8') as f:
-        f.write(html_content)
-    
-    logger.info(f"Generated portfolio with {len(portfolio_data)} sites ({new_domains} new, {updated_domains} updated)")
-    
-    # Push changes to git
-    push_to_git()
-    
-    logger.info("Portfolio generation completed")
+    if not themes:
+        return "None"
 
-
-def run_scheduled_task():
-    """Run the task at the scheduled time."""
-    thread = threading.Thread(target=run_portfolio_generation)
-    thread.daemon = True
-    thread.start()
-
+    # Return the theme with the highest count
+    return max(themes.items(), key=lambda x: x[1])[0]
 
 def main():
-    """Main entry point for the script."""
-    # Ensure the output directory exists
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    
-    # Schedule the task to run daily at 16:00
-    schedule.every().day.at("16:00").do(run_scheduled_task)
-    
-    # Also run it immediately when the script starts
-    logger.info("Running initial portfolio generation")
-    run_portfolio_generation()
-    
-    # Keep the script running to execute scheduled tasks
-    logger.info("Waiting for scheduled tasks. Press Ctrl+C to exit.")
+    """Main function to generate the portfolio."""
     try:
-        while True:
-            schedule.run_pending()
-            time.sleep(60)  # Check every minute
-    except KeyboardInterrupt:
-        logger.info("Script stopped by user")
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
+        # Create output directories
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+        os.makedirs(THUMBNAILS_DIR, exist_ok=True)
 
+        # Initialize git repository
+        repo = init_git_repo()
+
+        # Load existing data if available
+        existing_data = []
+        existing_domains = {}
+
+        if os.path.exists(DATA_FILE):
+            try:
+                with open(DATA_FILE, 'r', encoding='utf-8') as f:
+                    existing_data = json.load(f)
+
+                # Create a lookup dictionary for faster access
+                for site in existing_data:
+                    existing_domains[site.get("domain", "")] = site
+
+                logger.info(f"Loaded {len(existing_data)} existing sites from {DATA_FILE}")
+            except Exception as e:
+                logger.error(f"Error loading existing data: {e}")
+
+        # Load domains from file
+        try:
+            with open(DOMAINS_FILE, 'r', encoding='utf-8') as f:
+                domains = [line.strip() for line in f if line.strip()]
+            logger.info(f"Loaded {len(domains)} domains from {DOMAINS_FILE}")
+        except Exception as e:
+            logger.error(f"Error loading domains: {e}")
+            domains = []
+
+        # Process each domain
+        new_domains = 0
+        updated_domains = 0
+
+        for domain in domains:
+            try:
+                # Normalize URL
+                url = normalize_url(domain)
+                domain_name = urlparse(url).netloc
+
+                # Create a hash of the domain name for filenames
+                domain_hash = hashlib.md5(domain_name.encode()).hexdigest()
+
+                logger.info(f"Processing {domain_name}")
+
+                # Check if we already have data for this domain
+                if domain_name in existing_domains:
+                    # Skip if processed recently (less than 7 days ago)
+                    last_updated = existing_domains[domain_name].get("last_updated", "")
+                    if last_updated:
+                        try:
+                            last_date = datetime.strptime(last_updated, "%Y-%m-%d")
+                            days_since_update = (datetime.now() - last_date).days
+                            if days_since_update < 7:
+                                logger.info(f"Skipping {domain_name} - updated {days_since_update} days ago")
+                                continue
+                        except Exception:
+                            # If date parsing fails, process anyway
+                            pass
+
+                # Fetch website content
+                html_content = get_domain_content(url)
+                if not html_content:
+                    logger.warning(f"Could not fetch content for {domain_name}")
+                    continue
+
+                # Analyze content
+                analysis = analyze_content(html_content)
+
+                # Capture thumbnail
+                thumbnail_path = capture_thumbnail(url, domain_name)
+
+                # Create or update site data
+                site_data = {
+                    "domain": domain_name,
+                    "url": url,
+                    "theme": analysis["theme"],
+                    "keywords": analysis["keywords"],
+                    "technologies": analysis["technologies"],
+                    "last_updated": datetime.now().strftime("%Y-%m-%d"),
+                    "description": ""
+                }
+
+                # Generate description
+                site_data["description"] = generate_description(site_data)
+
+                # Update existing data or add new entry
+                if domain_name in existing_domains:
+                    # Update existing entry
+                    for i, site in enumerate(existing_data):
+                        if site.get("domain") == domain_name:
+                            existing_data[i] = site_data
+                            break
+                    updated_domains += 1
+                    logger.info(f"Updated data for {domain_name}")
+                else:
+                    # Add new entry
+                    existing_data.append(site_data)
+                    new_domains += 1
+                    logger.info(f"Added new data for {domain_name}")
+
+                # Sleep to avoid rate limiting
+                time.sleep(1)
+            except Exception as e:
+                logger.error(f"Error processing {domain}: {e}")
+
+        # Save updated data
+        with open(DATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(existing_data, f, indent=2)
+
+        logger.info(f"Saved data for {len(existing_data)} sites to {DATA_FILE}")
+        logger.info(f"Added {new_domains} new domains, updated {updated_domains} existing domains")
+
+        # Commit and push changes
+        commit_and_push_changes(repo)
+
+        return True
+    except Exception as e:
+        logger.error(f"Error in main function: {e}")
+        return False
 
 if __name__ == "__main__":
-    main()
+    # Run once
+    success = main()
+
+    if success:
+        logger.info("Portfolio generation completed successfully")
+    else:
+        logger.error("Portfolio generation failed")
+
+
