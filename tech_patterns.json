@@ -1,8 +1,870 @@
 {
-    "React": ["react.js", "reactjs"],
-    "Vue": ["vue.js", "vuejs"],
-    "WordPress": ["wordpress", "wp-content"],
-    "Django": ["django", "djangoproject"],
-    "Flask": ["flask", "flask-"],
-    "Angular": ["angular.js", "angularjs"]
+    "React": [
+        "react.js",
+        "reactjs",
+        "react-dom",
+        "react-router",
+        "jsx",
+        "createelement",
+        "usestate",
+        "useeffect",
+        "react-bootstrap",
+        "react",
+        "react native",
+        "react-native"
+    ],
+    "Vue": [
+        "vue.js",
+        "vuejs",
+        "vue-router",
+        "vuex",
+        "vue-cli",
+        "v-bind",
+        "v-model",
+        "v-for",
+        "v-if",
+        "nuxt",
+        "vue",
+        "nuxt.js",
+        "nuxtjs"
+    ],
+    "WordPress": [
+        "wordpress",
+        "wp-content",
+        "wp-includes",
+        "wp-admin",
+        "woocommerce",
+        "wp-json",
+        "wp-plugin",
+        "wp-",
+        "gutenberg",
+        "elementor",
+        "divi"
+    ],
+    "Django": [
+        "django",
+        "djangoproject",
+        "csrftoken",
+        "wsgi.py",
+        "asgi.py",
+        "urls.py",
+        "views.py",
+        "django-admin"
+    ],
+    "Flask": [
+        "flask",
+        "flask-",
+        "werkzeug",
+        "jinja2",
+        "flask_sqlalchemy",
+        "flask_login"
+    ],
+    "Angular": [
+        "angular.js",
+        "angularjs",
+        "ng-app",
+        "ng-controller",
+        "ng-model",
+        "ng-repeat",
+        "angular-material",
+        "angular",
+        "ng-"
+    ],
+    "Node.js": [
+        "node_modules",
+        "express",
+        "npm",
+        "package.json",
+        "package-lock.json",
+        "nextjs",
+        "node.js",
+        "node",
+        "nodejs"
+    ],
+    "jQuery": [
+        "jquery",
+        "jquery.min.js",
+        "jquery-ui",
+        "$('",
+        "$(\"",
+        "$.ajax"
+    ],
+    "Bootstrap": [
+        "bootstrap.css",
+        "bootstrap.min.css",
+        "bootstrap.js",
+        "bootstrap.min.js",
+        "bootstrap.bundle.js",
+        "bootstrap"
+    ],
+    "Tailwind CSS": [
+        "tailwind.css",
+        "tailwindcss",
+        "tailwind.config",
+        "tw-",
+        "tailwind components",
+        "tailwind"
+    ],
+    "Laravel": [
+        "laravel",
+        "blade.php",
+        "artisan",
+        "tinker",
+        "eloquent",
+        "symfony",
+        "livewire"
+    ],
+    "Ruby on Rails": [
+        "rails",
+        "ruby",
+        "gemfile",
+        "activerecord",
+        "actionview",
+        "activestorage",
+        "ruby on rails"
+    ],
+    "Svelte": [
+        "svelte",
+        ".svelte",
+        "sveltekit",
+        "svelte-kit"
+    ],
+    "ASP.NET": [
+        "asp.net",
+        "webforms",
+        "viewstate",
+        "asp:button",
+        ".aspx",
+        ".cshtml",
+        "mvc"
+    ],
+    "PHP": [
+        "php",
+        ".php",
+        "wp-",
+        "drupal",
+        "joomla",
+        "magento",
+        "composer.json"
+    ],
+    "TypeScript": [
+        "typescript",
+        ".ts",
+        "tsconfig",
+        "tslint",
+        "tsc"
+    ],
+    "Gatsby": [
+        "gatsby",
+        "gatsby-config",
+        "gatsby-node",
+        "gatsby-browser"
+    ],
+    "Next.js": [
+        "next.js",
+        "nextjs",
+        "_app.js",
+        "getserversideprops",
+        "getstaticprops"
+    ],
+    "GraphQL": [
+        "graphql",
+        "apollo",
+        "gql`",
+        "usequery",
+        "usemutation",
+        "hasura"
+    ],
+    "Electron": [
+        "electron",
+        "main.js",
+        "renderer.js",
+        "ipcmain",
+        "ipcrenderer"
+    ],
+    "Webpack": [
+        "webpack",
+        "webpack.config",
+        "bundle.js",
+        "chunks"
+    ],
+    "SASS/SCSS": [
+        ".scss",
+        ".sass",
+        "@mixin",
+        "@include",
+        "@extend",
+        "sass",
+        "scss"
+    ],
+    "Less": [
+        ".less",
+        "lessc",
+        "@import",
+        "less"
+    ],
+    "Redux": [
+        "redux",
+        "createstore",
+        "useselector",
+        "usedispatch",
+        "reducer"
+    ],
+    "Mongoose": [
+        "mongoose",
+        "mongodb",
+        "schema.js",
+        "model.js"
+    ],
+    "Drupal": [
+        "drupal",
+        "drupal.org",
+        "drupal.settings"
+    ],
+    "Joomla": [
+        "joomla",
+        "com_content",
+        "mod_"
+    ],
+    "Shopify": [
+        "shopify",
+        ".myshopify.com",
+        "liquid"
+    ],
+    "Magento": [
+        "magento",
+        "mage/",
+        "magento-",
+        "magentocommerce"
+    ],
+    "Three.js": [
+        "three.js",
+        "threejs",
+        "scene",
+        "camera",
+        "renderer",
+        "mesh"
+    ],
+    "D3.js": [
+        "d3.js",
+        "d3.select",
+        "d3.append",
+        "d3.scale",
+        "d3.axis",
+        "d3"
+    ],
+    "Express": [
+        "express",
+        "express.js",
+        "express-session",
+        "express.static",
+        "express.router"
+    ],
+    "MongoDB": [
+        "mongodb",
+        "mongo",
+        "mongoose",
+        "mongodb://",
+        "mongodb+srv://"
+    ],
+    "MySQL": [
+        "mysql",
+        "mysqli",
+        "mysql2",
+        "mysql_",
+        "mysql-connector"
+    ],
+    "PostgreSQL": [
+        "postgresql",
+        "postgres",
+        "pg:",
+        "pg_",
+        "psql",
+        "postgres://"
+    ],
+    "Wix": [
+        "wix",
+        "wix.com",
+        "_wix",
+        "wixcode",
+        "wixstores"
+    ],
+    "Squarespace": [
+        "squarespace",
+        "sqsp",
+        "squarespace-cdn",
+        "squarespace.com"
+    ],
+    "Webflow": [
+        "webflow",
+        "webflow.com",
+        "webflow.io",
+        "webflow.js"
+    ],
+    "Material UI": [
+        "material-ui",
+        "mui",
+        "@mui/",
+        "@material-ui/",
+        "mui-"
+    ],
+    "Firebase": [
+        "firebase",
+        "firestore",
+        "firebase.js",
+        "firebase-app",
+        "firebase-auth",
+        "firebaseio.com"
+    ],
+    "AWS": [
+        "aws",
+        "amazon web services",
+        "amazonaws.com",
+        "aws-sdk",
+        "s3.amazonaws",
+        "ec2",
+        "s3"
+    ],
+    "Google Cloud": [
+        "gcp",
+        "google cloud",
+        "googleapis.com",
+        "gcloud",
+        "appspot.com",
+        "cloud.google"
+    ],
+    "Azure": [
+        "azure",
+        "microsoft azure",
+        "azurewebsites.net",
+        "azure-functions",
+        "azure.microsoft.com"
+    ],
+    "Cloudflare": [
+        "cloudflare",
+        "cloudflare-cdn",
+        "cloudflare.com",
+        "cloudflare-dns",
+        "cloudflare workers"
+    ],
+    "Netlify": [
+        "netlify",
+        "netlify.app",
+        "netlify.com",
+        "netlify-cdp-loader",
+        "netlify-identity"
+    ],
+    "Vercel": [
+        "vercel",
+        "vercel.app",
+        "vercel.com",
+        "next-on-vercel",
+        "_vercel"
+    ],
+    "Heroku": [
+        "heroku",
+        "herokuapp.com",
+        "heroku.com",
+        "heroku-app"
+    ],
+    "Docker": [
+        "docker",
+        "dockerfile",
+        "docker-compose",
+        "docker.sock",
+        "dockerhub"
+    ],
+    "Kubernetes": [
+        "kubernetes",
+        "k8s",
+        "kubectl",
+        "kubernetes.io",
+        "kube-"
+    ],
+    "Babel": [
+        "babel",
+        ".babelrc",
+        "babel.config.js",
+        "@babel/",
+        "babel-loader"
+    ],
+    "ESLint": [
+        "eslint",
+        ".eslintrc",
+        "eslint-disable",
+        "eslint-plugin",
+        "eslint-config"
+    ],
+    "Jest": [
+        "jest",
+        "jest.config.js",
+        "jest.setup.js",
+        "test.js",
+        "spec.js",
+        "it(",
+        "describe(",
+        "expect("
+    ],
+    "Mocha": [
+        "mocha",
+        "mocha.js",
+        "mocha.opts",
+        "mocha-",
+        "describe(",
+        "it("
+    ],
+    "Cypress": [
+        "cypress",
+        "cypress.json",
+        "cy.visit",
+        "cy.get",
+        "cy.click",
+        "cy.should"
+    ],
+    "Google Analytics": [
+        "google analytics",
+        "ga",
+        "gtag",
+        "ga('send'",
+        "analytics.js",
+        "gtag('config'"
+    ],
+    "Stripe": [
+        "stripe",
+        "stripe.js",
+        "stripe-js",
+        "stripe.com",
+        "checkout.stripe"
+    ],
+    "PayPal": [
+        "paypal",
+        "paypal.com",
+        "checkout.paypal",
+        "paypal-button",
+        "paypal.me"
+    ],
+    "Algolia": [
+        "algolia",
+        "algoliasearch",
+        "algolia.com",
+        "algolia-autocomplete",
+        "instantsearch.js"
+    ],
+    "Contentful": [
+        "contentful",
+        "contentful.com",
+        "contentful-sdk",
+        "contentful-delivery",
+        "contentful-management"
+    ],
+    "Sanity": [
+        "sanity.io",
+        "sanity",
+        "@sanity/",
+        "sanity-plugin",
+        "sanity.cli"
+    ],
+    "WooCommerce": [
+        "woocommerce",
+        "wc-",
+        "woocommerce.js",
+        "wc_add_to_cart",
+        "woocommerce-"
+    ],
+    "PrestaShop": [
+        "prestashop",
+        "presta-",
+        "prestashop.com",
+        "ps_",
+        "prestashop-modules"
+    ],
+    "OpenCart": [
+        "opencart",
+        "opencart.com",
+        "ocmod",
+        "opencart-extension"
+    ],
+    "Styled Components": [
+        "styled-components",
+        "styled components",
+        "styled-component",
+        "styled.div",
+        "css`"
+    ],
+    "Emotion": [
+        "emotion",
+        "@emotion/",
+        "emotion-js",
+        "emotion.sh"
+    ],
+    "Chakra UI": [
+        "chakra",
+        "@chakra-ui/",
+        "chakra-ui",
+        "useDisclosure",
+        "useToast"
+    ],
+    "Ant Design": [
+        "antd",
+        "ant design",
+        "@ant-design/",
+        "ant-",
+        "antd/"
+    ],
+    "Semantic UI": [
+        "semantic-ui",
+        "semantic ui",
+        "ui segment",
+        "ui button",
+        "ui grid"
+    ],
+    "Bulma": [
+        "bulma",
+        "bulma.io",
+        "is-primary",
+        "is-info",
+        "is-success"
+    ],
+    "Foundation": [
+        "foundation",
+        "foundation.zurb",
+        "foundation.css",
+        "foundation-sites"
+    ],
+    "Alpine.js": [
+        "alpine.js",
+        "alpinejs",
+        "x-data",
+        "x-bind",
+        "x-on",
+        "x-for"
+    ],
+    "Stimulus": [
+        "stimulus",
+        "stimulus.js",
+        "stimulus-controller",
+        "data-controller"
+    ],
+    "Ember": [
+        "ember",
+        "ember.js",
+        "emberjs",
+        "ember-data",
+        "ember-cli"
+    ],
+    "Backbone.js": [
+        "backbone",
+        "backbone.js",
+        "backbone-",
+        "Backbone.Model",
+        "Backbone.View"
+    ],
+    "Meteor": [
+        "meteor",
+        ".meteor",
+        "meteor.call",
+        "meteor.subscribe",
+        "meteor.userId"
+    ],
+    "Socket.io": [
+        "socket.io",
+        "socketio",
+        "io.connect",
+        "io.on",
+        "socket.emit"
+    ],
+    "Chart.js": [
+        "chart.js",
+        "chartjs",
+        "new Chart(",
+        "Chart.defaults",
+        "Chart.register"
+    ],
+    "Highcharts": [
+        "highcharts",
+        "highcharts.js",
+        "Highcharts.chart",
+        "highcharts-container"
+    ],
+    "Plotly": [
+        "plotly",
+        "plotly.js",
+        "Plotly.newPlot",
+        "plotly-graph",
+        "plotly.react"
+    ],
+    "Leaflet": [
+        "leaflet",
+        "leaflet.js",
+        "L.map",
+        "L.tileLayer",
+        "L.marker"
+    ],
+    "Mapbox": [
+        "mapbox",
+        "mapbox-gl",
+        "mapbox.com",
+        "mapbox://",
+        "mapboxgl"
+    ],
+    "Auth0": [
+        "auth0",
+        "auth0.com",
+        "auth0-spa-js",
+        "auth0-lock",
+        "auth0-js"
+    ],
+    "Okta": [
+        "okta",
+        "okta.com",
+        "okta-auth-js",
+        "okta-signin-widget"
+    ],
+    "Sentry": [
+        "sentry",
+        "sentry.io",
+        "@sentry/",
+        "Sentry.init",
+        "Sentry.captureException"
+    ],
+    "New Relic": [
+        "newrelic",
+        "new relic",
+        "newrelic.com",
+        "nr-data",
+        "NREUM"
+    ],
+    "Datadog": [
+        "datadog",
+        "datadoghq",
+        "datadog-agent",
+        "DD_API_KEY"
+    ],
+    "Amplitude": [
+        "amplitude",
+        "amplitude.com",
+        "amplitude.getInstance",
+        "amplitude.track"
+    ],
+    "Mixpanel": [
+        "mixpanel",
+        "mixpanel.js",
+        "mixpanel.track",
+        "mixpanel.identify"
+    ],
+    "Hotjar": [
+        "hotjar",
+        "hotjar.com",
+        "hjsv",
+        "_hjSettings",
+        "hj('trigger'"
+    ],
+    "Intercom": [
+        "intercom",
+        "intercom.io",
+        "intercomSettings",
+        "Intercom('boot'",
+        "intercom-css-loader"
+    ],
+    "Zendesk": [
+        "zendesk",
+        "zendesk.com",
+        "zdassets",
+        "zd-"
+    ],
+    "Hubspot": [
+        "hubspot",
+        "hubspot.com",
+        "hs-",
+        "hubspotutk",
+        "hs-script-loader"
+    ],
+    "Mailchimp": [
+        "mailchimp",
+        "mailchimp.com",
+        "mc.js",
+        "mc_",
+        "chimpstatic"
+    ],
+    "SendGrid": [
+        "sendgrid",
+        "sendgrid.com",
+        "sendgrid.net",
+        "sg_"
+    ],
+    "Twilio": [
+        "twilio",
+        "twilio.com",
+        "twlo",
+        "twilio-video",
+        "twilio-chat"
+    ],
+    "Cloudinary": [
+        "cloudinary",
+        "cloudinary.com",
+        "res.cloudinary.com",
+        "cloudinary-",
+        "cloudinary.config"
+    ],
+    "Akamai": [
+        "akamai",
+        "akamai.net",
+        "akamai.com",
+        "akamaihd.net",
+        "akamaized.net"
+    ],
+    "Fastly": [
+        "fastly",
+        "fastly.com",
+        "fastly.net",
+        "fastly-insights"
+    ],
+    "Vimeo": [
+        "vimeo",
+        "vimeo.com",
+        "player.vimeo",
+        "vimeocdn"
+    ],
+    "YouTube": [
+        "youtube",
+        "youtube.com",
+        "youtu.be",
+        "youtube-nocookie",
+        "yt-"
+    ],
+    "Disqus": [
+        "disqus",
+        "disqus.com",
+        "disquscdn",
+        "disqus_thread",
+        "disqus_shortname"
+    ],
+    "Discourse": [
+        "discourse",
+        "discourse.org",
+        "discoursecdn",
+        "discourse-"
+    ],
+    "Ghost": [
+        "ghost",
+        "ghost.io",
+        "ghost.org",
+        "ghost-",
+        "ghost_root_url"
+    ],
+    "Medium": [
+        "medium",
+        "medium.com",
+        "cdn-images-1.medium.com",
+        "medium.freecodecamp"
+    ],
+    "Webmentions": [
+        "webmention",
+        "webmention.io",
+        "webmention-",
+        "webmention.js"
+    ],
+    "IndieWeb": [
+        "indieweb",
+        "indieweb.org",
+        "indie-",
+        "h-card",
+        "h-entry"
+    ],
+    "JSON-LD": [
+        "json-ld",
+        "jsonld",
+        "application/ld+json"
+    ],
+    "Schema.org": [
+        "schema.org",
+        "schema",
+        "itemscope",
+        "itemprop",
+        "itemtype"
+    ],
+    "Open Graph": [
+        "og:",
+        "og:title",
+        "og:description",
+        "og:image",
+        "og:url"
+    ],
+    "Twitter Cards": [
+        "twitter:",
+        "twitter:card",
+        "twitter:site",
+        "twitter:title",
+        "twitter:description"
+    ],
+    "AMP": [
+        "amp-",
+        "accelerated mobile pages",
+        "amp.js",
+        "ampproject",
+        "amp-boilerplate"
+    ],
+    "PWA": [
+        "progressive web app",
+        "service-worker.js",
+        "manifest.json",
+        "serviceWorker",
+        "push-notifications"
+    ],
+    "WebAssembly": [
+        "wasm",
+        "webassembly",
+        ".wasm",
+        "WebAssembly.instantiate",
+        "WebAssembly.compile"
+    ],
+    "WebGL": [
+        "webgl",
+        "webgl2",
+        "gl.createShader",
+        "gl.drawArrays",
+        "canvas.getContext('webgl')"
+    ],
+    "WebRTC": [
+        "webrtc",
+        "RTCPeerConnection",
+        "getUserMedia",
+        "RTCDataChannel",
+        "RTCSessionDescription"
+    ],
+    "WebSockets": [
+        "websocket",
+        "ws://",
+        "wss://",
+        "new WebSocket(",
+        "socket.onmessage"
+    ],
+    "Web Components": [
+        "custom-elements",
+        "shadow-dom",
+        "web components",
+        "customElements.define",
+        "attachShadow"
+    ],
+    "Lit": [
+        "lit-element",
+        "lit-html",
+        "lit",
+        "LitElement",
+        "@lit/"
+    ],
+    "Stencil": [
+        "stencil",
+        "stenciljs",
+        "@stencil/",
+        "stencil-",
+        "defineCustomElement"
+    ],
+    "Polymer": [
+        "polymer",
+        "polymer-element",
+        "polymer.js",
+        "polymer-project",
+        "Polymer("
+    ]
 }

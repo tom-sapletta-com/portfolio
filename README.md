@@ -231,6 +231,14 @@ python -m spacy download en_core_web_md
    pip install -r requirements.txt
    ```
 
+# Install spaCy's small English model directly
+```bash
+pip install spacy
+pip install selenium
+pip install webdriver_manager
+python -m spacy download en_core_web_sm
+```
+
 3. Start the server:
    ```bash
    python portfolio_generator.py

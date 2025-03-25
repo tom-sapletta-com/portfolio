@@ -110,14 +110,67 @@ def get_initials(domain):
         return domain_name[:2].upper()
     return domain_name.upper()
 
-def generate_description(site):
-    """Generate a brief description from the site data."""
-    keywords = site.get("keywords", [])
-    if not keywords:
-        return f"This appears to be a {site.get('theme', 'general').lower()} website."
 
+def generate_description(site):
+    """
+    Generate a comprehensive description from the site data using NLP techniques.
+
+    Args:
+        site (dict): Dictionary containing site analysis data
+
+    Returns:
+        str: A natural language description of the website
+    """
+    # Extract site data
+    theme = site.get('theme', 'general').lower()
+    keywords = site.get('keywords', [])
+    technologies = site.get('technologies', [])
+
+    # If no keywords available, return basic description
+    if not keywords:
+        return f"This appears to be a {theme} website utilizing {', '.join(technologies[:2]) if technologies else 'standard web technologies'}."
+
+    # Create more nuanced descriptions based on theme and keywords
+    if theme == "e-commerce":
+        primary_focus = keywords[0] if keywords else "products"
+        secondary_items = ", ".join(keywords[1:3]) if len(keywords) > 1 else ""
+        tech_stack = f" Built with {', '.join(technologies[:2])}" if technologies else ""
+
+        if secondary_items:
+            return f"An online store specializing in {primary_focus} with additional offerings including {secondary_items}.{tech_stack}"
+        return f"An e-commerce platform focused on {primary_focus}.{tech_stack}"
+
+    elif theme == "blog" or theme == "news":
+        topics = ", ".join(keywords[:3])
+        return f"A {theme} site covering topics such as {topics}, providing readers with informative content and insights."
+
+    elif theme == "portfolio" or theme == "personal":
+        focus = keywords[0] if keywords else "personal projects"
+        return f"A {theme} website showcasing work in {focus}" + (
+            f" and {', '.join(keywords[1:3])}" if len(keywords) > 1 else "") + "."
+
+    elif theme == "corporate" or theme == "business":
+        industry = keywords[0] if keywords else "business services"
+        features = ", ".join(keywords[1:3]) if len(keywords) > 1 else "professional services"
+        return f"A professional {theme} site for a company in the {industry} industry, highlighting their {features}."
+
+    elif theme == "educational":
+        subjects = ", ".join(keywords[:3]) if keywords else "various subjects"
+        return f"An educational platform providing resources and information on {subjects}."
+
+    # Default description with more natural language
     keyword_text = ", ".join(keywords[:3])
-    return f"This {site.get('theme', 'website').lower()} focuses on {keyword_text}."
+    tech_mention = f" Developed using {', '.join(technologies[:2])}" if technologies else ""
+
+    descriptions = [
+        f"A {theme} website that primarily focuses on {keyword_text}.{tech_mention}",
+        f"This {theme} site specializes in {keyword_text}, offering visitors comprehensive information and resources.{tech_mention}",
+        f"A platform dedicated to {keyword_text} with a {theme} approach.{tech_mention}"
+    ]
+
+    # Use a hash of the domain to consistently select the same description style
+    domain_hash = hash(site.get('domain', '')) % len(descriptions)
+    return descriptions[domain_hash]
 
 def find_most_common_theme(portfolio_data):
     """Find the most common theme in the portfolio data."""
@@ -199,7 +252,7 @@ def process_single_domain(url_info, screenshotter=None):
             return None
 
         # Analyze content
-        print(html_content)
+        # print(html_content)
         analysis = analyze_content(html_content)
 
         # Capture thumbnail
@@ -314,7 +367,8 @@ def multi():
 
         # Capture screenshots in parallel
         from screenshot.ScreenshotCapture import ScreenshotCapture
-        screenshotter = ScreenshotCapture(output_dir="media/thumbnails")
+        screenshotter = ScreenshotCapture(output_dir="thumbnails")
+        #screenshotter = ScreenshotCapture(output_dir="media/thumbnails")
 
         # Use multicapture to get screenshots
         try:

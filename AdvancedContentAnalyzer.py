@@ -1,6 +1,7 @@
 #!/bin/python
 # AdvancedContentAnalyzer.py
 import os
+import sys
 import re
 import json
 import logging
@@ -23,21 +24,24 @@ class AdvancedContentAnalyzer:
     def __init__(self,
                  tech_patterns_file='tech_patterns.json',
                  themes_file='common_themes.json',
-                 spacy_model='en_core_web_md'):
+                 spacy_model='en_core_web_sm'):  # Change default to sm instead of md
         """
         Advanced content analyzer using NLP techniques.
-
-        Args:
-            tech_patterns_file (str): Path to technology patterns JSON
-            themes_file (str): Path to themes JSON
-            spacy_model (str): SpaCy language model to use
         """
         # Load SpaCy model
         try:
             self.nlp = spacy.load(spacy_model)
         except OSError:
-            logging.warning(f"SpaCy model {spacy_model} not found. Using default.")
-            self.nlp = spacy.load('en_core_web_sm')
+            logging.warning(f"SpaCy model {spacy_model} not found. Downloading it...")
+            try:
+                # Try to download the model
+                import subprocess
+                subprocess.call([sys.executable, "-m", "spacy", "download", spacy_model])
+                self.nlp = spacy.load(spacy_model)
+            except Exception as e:
+                logging.error(f"Failed to download model: {e}")
+                # Create a simple fallback model
+                self.nlp = spacy.blank("en")
 
         # Load technology and theme patterns
         self.tech_patterns = self._load_json(tech_patterns_file)
