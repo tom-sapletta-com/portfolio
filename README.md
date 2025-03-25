@@ -169,4 +169,25 @@ This script is designed to be user-friendly even for those who aren't familiar w
 This script is provided as-is with no warranty. Use at your own risk.
 
 
+```        
+pip install spacy scikit-learn beautifulsoup4
+python -m spacy download en_core_web_md
+```
 
+1. Create and activate virtual environment:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+2. Install requirements:
+   ```bash
+   pip install --upgrade pip
+   pip install -r requirements.txt
+   ```
+
+3. Start the server:
+   ```bash
+   python portfolio_generator.py
+   ```
+   

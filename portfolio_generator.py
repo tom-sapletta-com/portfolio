@@ -17,7 +17,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from tech_patterns import tech_patterns
 from common_themes import common_themes
 
-
+from AdvancedContentAnalyzer import analyze_content
 
 
 # Configuration
@@ -89,89 +89,6 @@ def generate_filename(self, url: str) -> str:
     """
     parsed_url = urlparse(url)
     return f"{parsed_url.netloc.replace('.', '_').replace(':', '_')}.png"
-
-def analyze_content(html_content):
-    """Analyze website content to identify theme and technologies."""
-    if not html_content:
-        return {
-            "theme": "Unknown",
-            "keywords": [],
-            "technologies": []
-        }
-
-    soup = BeautifulSoup(html_content, 'html.parser')
-
-    # Extract text for theme/keywords analysis
-    text_content = soup.get_text(separator=' ', strip=True)
-
-    # Very simple NLP with TF-IDF to extract keywords
-    try:
-        # Simple preprocessing
-        text_content = re.sub(r'\s+', ' ', text_content).lower()
-
-        # Extract keywords with TF-IDF
-        vectorizer = TfidfVectorizer(
-            max_features=100,
-            stop_words='english',
-            ngram_range=(1, 2)
-        )
-
-        # Ensure we have enough text to analyze
-        if len(text_content.split()) < 10:
-            keywords = []
-        else:
-            tfidf_matrix = vectorizer.fit_transform([text_content])
-            feature_names = vectorizer.get_feature_names_out()
-
-            # Get top keywords
-            scores = zip(feature_names, tfidf_matrix.toarray()[0])
-            sorted_scores = sorted(scores, key=lambda x: x[1], reverse=True)
-            keywords = [word for word, score in sorted_scores[:10] if score > 0]
-
-        # Cluster text to identify theme
-        if len(text_content.split()) < 20:
-            theme = "Unknown"
-        else:
-            # Simple theme identification based on keyword frequency
-
-            # Count theme keywords in content
-            theme_scores = {}
-            for theme_name, theme_keywords in common_themes.items():
-                score = sum(1 for keyword in theme_keywords if keyword in text_content)
-                if score > 0:
-                    theme_scores[theme_name] = score
-
-            # Select theme with highest score
-            if theme_scores:
-                theme = max(theme_scores.items(), key=lambda x: x[1])[0]
-            else:
-                theme = "General"
-
-        # Detect technologies
-        technologies = []
-        html_str = str(soup).lower()
-
-        for tech, patterns in tech_patterns.items():
-            for pattern in patterns:
-                if pattern.lower() in html_str:
-                    technologies.append(tech)
-                    break
-
-        # Remove duplicates
-        technologies = list(set(technologies))
-
-        return {
-            "theme": theme,
-            "keywords": keywords,
-            "technologies": technologies
-        }
-    except Exception as e:
-        logger.error(f"Error analyzing content: {e}")
-        return {
-            "theme": "Unknown",
-            "keywords": [],
-            "technologies": []
-        }
 
 
 

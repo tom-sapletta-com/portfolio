@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.5] - 2025-03-25
+
+### Added
+- Changes in AdvancedContentAnalyzer.py
+- Changes in common_themes.json
+- Changes in tech_patterns.json
+
 ## [0.1.4] - 2025-03-25
 
 ### Added

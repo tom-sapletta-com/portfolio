@@ -1,0 +1,8 @@
+{
+    "E-commerce": ["shop", "store", "product", "buy", "sale"],
+    "Blog": ["blog", "article", "post", "writing", "content"],
+    "Portfolio": ["portfolio", "showcase", "project", "work"],
+    "Technology": ["tech", "innovation", "software", "development"],
+    "Education": ["learn", "course", "tutorial", "education"],
+    "News": ["news", "media", "journalism", "current events"]
+}

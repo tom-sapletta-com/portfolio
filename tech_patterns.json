@@ -1,0 +1,8 @@
+{
+    "React": ["react.js", "reactjs"],
+    "Vue": ["vue.js", "vuejs"],
+    "WordPress": ["wordpress", "wp-content"],
+    "Django": ["django", "djangoproject"],
+    "Flask": ["flask", "flask-"],
+    "Angular": ["angular.js", "angularjs"]
+}
