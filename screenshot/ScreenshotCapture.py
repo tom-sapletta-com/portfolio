@@ -8,6 +8,11 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from PIL import Image
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import TimeoutException
+import time
 
 # Konfiguracja logowania
 logging.basicConfig(
@@ -75,7 +80,7 @@ class ScreenshotCapture:
 
     def capture(self, url: str) -> Optional[str]:
         """
-        Zrobienie zrzutu ekranu strony internetowej.
+        Zrobienie zrzutu ekranu strony internetowej z dłuższym czasem oczekiwania na załadowanie JavaScript.
 
         Args:
             url (str): Adres URL strony do zrzutu
@@ -105,6 +110,20 @@ class ScreenshotCapture:
 
             # Nawigacja do strony
             driver.get(normalized_url)
+
+            # Oczekiwanie na załadowanie strony i JavaScript (maks. 10 sekund)
+            wait = WebDriverWait(driver, 10)
+            try:
+                # Poczekaj na załadowanie dokumentu
+                wait.until(lambda d: d.execute_script('return document.readyState') == 'complete')
+
+                # Opcjonalnie: dodatkowe oczekiwanie na konkretne elementy, jeśli potrzeba
+                # Przykład: wait.until(EC.presence_of_element_located((By.ID, 'main-content')))
+            except TimeoutException:
+                logging.warning(f"Przekroczono limit czasu ładowania strony: {normalized_url}")
+
+            # Krótkie dodatkowe oczekiwanie na dociążenie dynamicznej zawartości
+            time.sleep(2)
 
             # Zrobienie zrzutu ekranu
             driver.save_screenshot(output_path)
@@ -137,6 +156,79 @@ class ScreenshotCapture:
     def capture_multiple(self, urls: list) -> list:
         """
         Zrobienie zrzutów ekranu dla wielu stron.
+
+        Args:
+            urls (list): Lista adresów URL
+
+        Returns:
+            list: Lista ścieżek do zrzutów ekranu
+        """
+        results = []
+        for url in urls:
+            result = self.capture(url)
+            if result:
+                results.append(result)
+        return results
+
+    def multicapture(
+            self,
+            urls: list,
+            max_workers: int = None,
+            timeout: int = 180
+    ) -> list:
+        """
+        Zrobienie zrzutów ekranu dla wielu stron równolegle.
+
+        Args:
+            urls (list): Lista adresów URL do zrzutu
+            max_workers (int, optional): Maksymalna liczba równoczesnych procesów.
+                Domyślnie None (automatyczne ustalenie liczby procesów).
+            timeout (int, optional): Maksymalny czas trwania operacji w sekundach.
+                Domyślnie 180 sekund (3 minuty).
+
+        Returns:
+            list: Lista ścieżek do zrzutów ekranu
+        """
+        # Import bibliotek do przetwarzania równoległego
+        from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
+
+        # Lista do przechowywania wyników
+        results = []
+
+        # Użycie ThreadPoolExecutor do równoległego przetwarzania zrzutów
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Mapowanie zadań - każdy URL dostaje własne zadanie capture
+            future_to_url = {
+                executor.submit(self.capture, url): url
+                for url in urls
+            }
+
+            try:
+                # Iteracja po zakończonych zadaniach
+                for future in as_completed(future_to_url, timeout=timeout):
+                    url = future_to_url[future]
+                    try:
+                        # Próba pobrania wyniku
+                        result = future.result()
+                        if result:
+                            results.append(result)
+                    except Exception as exc:
+                        # Logowanie błędów dla poszczególnych URL
+                        logging.error(f'Błąd podczas przechwytywania {url}: {exc}')
+
+            except TimeoutError:
+                # Obsługa przekroczenia czasu
+                logging.warning(f'Przekroczono maksymalny czas wykonania {timeout} sekund')
+
+                # Anulowanie pozostałych zadań
+                for future in future_to_url:
+                    future.cancel()
+
+        return results
+
+    def capture_multiple(self, urls: list) -> list:
+        """
+        Zrobienie zrzutów ekranu dla wielu stron (stara metoda).
 
         Args:
             urls (list): Lista adresów URL

@@ -215,7 +215,7 @@ def find_most_common_theme(portfolio_data):
     # Return the theme with the highest count
     return max(themes.items(), key=lambda x: x[1])[0]
 
-def main():
+def main_one():
     """Main function to generate the portfolio."""
     try:
         # Usuń istniejący plik data.json przed rozpoczęciem
@@ -302,8 +302,113 @@ def main():
         logger.error(f"Error in main function: {e}")
         return False
 
+
+def main():
+    """Main function to generate the portfolio."""
+    try:
+        # Usuń istniejący plik data.json przed rozpoczęciem
+        if os.path.exists(DATA_FILE):
+            os.remove(DATA_FILE)
+            logger.info(f"Usunięto poprzedni plik {DATA_FILE}")
+
+        # Create output directories
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+        os.makedirs(THUMBNAILS_DIR, exist_ok=True)
+
+        # Load domains from file
+        try:
+            from domain2url.load_urls_from_csv import load_urls_from_csv
+
+            urls = load_urls_from_csv('portfolio_http.txt', only_available=True)
+            logger.info(f"Loaded {len(urls)} domains from {DOMAINS_FILE}")
+        except Exception as e:
+            logger.error(f"Error loading domains: {e}")
+            urls = []
+
+        # Process each domain
+        existing_data = []
+        existing_domains = {}
+        new_domains = 0
+
+        # Prepare lists for multicapture
+        urls_to_capture = [url_info['url'] for url_info in urls]
+
+        # Capture screenshots in parallel
+        from screenshot.ScreenshotCapture import ScreenshotCapture
+        screenshotter = ScreenshotCapture(output_dir="media/thumbnails")
+
+        # Use multicapture to get screenshots
+        try:
+            thumbnail_paths = screenshotter.multicapture(urls_to_capture, max_workers=5, timeout=300)
+            logger.info(f"Successfully captured {len(thumbnail_paths)} screenshots")
+        except Exception as e:
+            logger.error(f"Error in multicapture: {e}")
+            thumbnail_paths = []
+
+        # Create a mapping of URL to thumbnail path
+        thumbnail_map = dict(zip(urls_to_capture, thumbnail_paths))
+
+        for url_info in urls:
+            try:
+                # Extract URL and domain
+                url = url_info['url']
+                domain_name = url_info['domain']
+
+                logger.info(f"Processing {domain_name}")
+
+                # Fetch website content
+                html_content = get_domain_content(url)
+                if not html_content:
+                    logger.warning(f"Could not fetch content for {domain_name}")
+                    continue
+
+                # Analyze content
+                analysis = analyze_content(html_content)
+
+                # Get thumbnail path from multicapture results
+                thumbnail_path = thumbnail_map.get(url)
+
+                # Create site data
+                site_data = {
+                    "domain": domain_name,
+                    "url": url,
+                    "thumbnail": thumbnail_path,
+                    "theme": analysis["theme"],
+                    "keywords": analysis["keywords"],
+                    "technologies": analysis["technologies"],
+                    "last_updated": datetime.now().strftime("%Y-%m-%d"),
+                    "description": ""
+                }
+
+                # Generate description
+                site_data["description"] = generate_description(site_data)
+
+                # Add new entry
+                existing_data.append(site_data)
+                new_domains += 1
+                logger.info(f"Added new data for {domain_name}")
+
+                # Minimal sleep to prevent potential rate limiting
+                time.sleep(0.5)
+            except Exception as e:
+                logger.error(f"Error processing {url_info}: {e}")
+
+        # Save updated data
+        with open(DATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(existing_data, f, indent=2)
+
+        logger.info(f"Saved data for {len(existing_data)} sites to {DATA_FILE}")
+        logger.info(f"Added {new_domains} new domains")
+
+        return True
+    except Exception as e:
+        logger.error(f"Error in main function: {e}")
+        return False
+
+
 if __name__ == "__main__":
     # Run once
+    #success = main_one()
     success = main()
 
     if success:
