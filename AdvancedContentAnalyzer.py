@@ -1,4 +1,12 @@
+#!/bin/python
+# AdvancedContentAnalyzer.py
 import os
+import re
+import json
+import logging
+import numpy as np
+from typing import Dict, List, Optional
+from bs4 import BeautifulSoup  # Move this import to the top level
 import re
 import json
 import logging
@@ -7,7 +15,6 @@ import spacy
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from typing import Dict, List, Optional
-from AdvancedContentAnalyzer import AdvancedContentAnalyzer
 
 # Ensure the necessary models are downloaded
 # python -m spacy download en_core_web_md

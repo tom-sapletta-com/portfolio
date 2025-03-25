@@ -17,7 +17,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from tech_patterns import tech_patterns
 from common_themes import common_themes
 
-from AdvancedContentAnalyzer import analyze_content
+from AdvancedContentAnalyzer import AdvancedContentAnalyzer, analyze_content
 
 
 # Configuration
@@ -199,6 +199,7 @@ def process_single_domain(url_info, screenshotter=None):
             return None
 
         # Analyze content
+        print(html_content)
         analysis = analyze_content(html_content)
 
         # Capture thumbnail

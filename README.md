@@ -169,6 +169,51 @@ This script is designed to be user-friendly even for those who aren't familiar w
 This script is provided as-is with no warranty. Use at your own risk.
 
 
+I see you're still having issues with installing spaCy on your Fedora system. Let's try a few alternative approaches.
+
+The error now shows that there's no binary (wheel) package available for spaCy for your specific Python version, which seems to be Python 3.13 according to the error logs.
+
+Here are some options to resolve this:
+
+1. First, let's install the general development tools and gcc:
+```bash
+sudo dnf groupinstall "Development Tools"
+sudo dnf install gcc-c++
+```
+
+2. Since the build is specifically looking for g++-11, let's create a symbolic link to make the existing g++ available as g++-11:
+```bash
+which g++  # Find where g++ is located
+sudo ln -s $(which g++) /usr/local/bin/g++-11
+```
+
+3. Try installing spaCy with minimal dependencies or alternate versions:
+```bash
+pip install spacy==3.7.2  # Try an older version
+```
+
+4. If none of the above works, you could consider using a different Python version. SpaCy might not yet be fully compatible with Python 3.13 (which is quite new). You could create a new virtual environment with Python 3.10 or 3.11:
+```bash
+sudo dnf install python3.11
+python3.11 -m venv venv311
+source venv311/bin/activate
+pip install spacy scikit-learn beautifulsoup4
+```
+
+5. Alternatively, you could use Conda which manages its own binaries:
+```bash
+# Install Miniconda if you don't have it
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh
+
+# Create and activate conda environment
+conda create -n nlp python=3.10
+conda activate nlp
+conda install -c conda-forge spacy scikit-learn beautifulsoup4
+```
+
+The key issue seems to be Python 3.13 compatibility with spaCy's build system. Using a slightly older Python version (3.10-3.11) might be the quickest path to success.
+
 ```        
 pip install spacy scikit-learn beautifulsoup4
 python -m spacy download en_core_web_md
@@ -191,3 +236,48 @@ python -m spacy download en_core_web_md
    python portfolio_generator.py
    ```
    
+
+I see you're still having issues with installing spaCy on your Fedora system. Let's try a few alternative approaches.
+
+The error now shows that there's no binary (wheel) package available for spaCy for your specific Python version, which seems to be Python 3.13 according to the error logs.
+
+Here are some options to resolve this:
+
+1. First, let's install the general development tools and gcc:
+```bash
+sudo dnf groupinstall "Development Tools"
+sudo dnf install gcc-c++
+```
+
+2. Since the build is specifically looking for g++-11, let's create a symbolic link to make the existing g++ available as g++-11:
+```bash
+which g++  # Find where g++ is located
+sudo ln -s $(which g++) /usr/local/bin/g++-11
+```
+
+3. Try installing spaCy with minimal dependencies or alternate versions:
+```bash
+pip install spacy==3.7.2  # Try an older version
+```
+
+4. If none of the above works, you could consider using a different Python version. SpaCy might not yet be fully compatible with Python 3.13 (which is quite new). You could create a new virtual environment with Python 3.10 or 3.11:
+```bash
+sudo dnf install python3.11
+python3.11 -m venv venv311
+source venv311/bin/activate
+pip install spacy scikit-learn beautifulsoup4
+```
+
+5. Alternatively, you could use Conda which manages its own binaries:
+```bash
+# Install Miniconda if you don't have it
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh
+
+# Create and activate conda environment
+conda create -n nlp python=3.10
+conda activate nlp
+conda install -c conda-forge spacy scikit-learn beautifulsoup4
+```
+
+The key issue seems to be Python 3.13 compatibility with spaCy's build system. Using a slightly older Python version (3.10-3.11) might be the quickest path to success.
