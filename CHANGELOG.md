@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.4] - 2025-03-25
+
+### Added
+- Changes in screenshot.py
+- Changes in screenshot/README.md
+
 ## [0.1.3] - 2025-03-24
 
 ### Added

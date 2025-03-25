@@ -349,26 +349,14 @@ def find_most_common_theme(portfolio_data):
 def main():
     """Main function to generate the portfolio."""
     try:
+        # Usuń istniejący plik data.json przed rozpoczęciem
+        if os.path.exists(DATA_FILE):
+            os.remove(DATA_FILE)
+            logger.info(f"Usunięto poprzedni plik {DATA_FILE}")
+
         # Create output directories
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         os.makedirs(THUMBNAILS_DIR, exist_ok=True)
-
-        # Load existing data if available
-        existing_data = []
-        existing_domains = {}
-
-        if os.path.exists(DATA_FILE):
-            try:
-                with open(DATA_FILE, 'r', encoding='utf-8') as f:
-                    existing_data = json.load(f)
-
-                # Create a lookup dictionary for faster access
-                for site in existing_data:
-                    existing_domains[site.get("domain", "")] = site
-
-                logger.info(f"Loaded {len(existing_data)} existing sites from {DATA_FILE}")
-            except Exception as e:
-                logger.error(f"Error loading existing data: {e}")
 
         # Load domains from file
         try:
@@ -381,8 +369,9 @@ def main():
             urls = []
 
         # Process each domain
+        existing_data = []
+        existing_domains = {}
         new_domains = 0
-        updated_domains = 0
 
         for url_info in urls:
             try:
@@ -391,21 +380,6 @@ def main():
                 domain_name = url_info['domain']
 
                 logger.info(f"Processing {domain_name}")
-
-                # Check if we already have data for this domain
-                if domain_name in existing_domains:
-                    # Skip if processed recently (less than 7 days ago)
-                    last_updated = existing_domains[domain_name].get("last_updated", "")
-                    if last_updated:
-                        try:
-                            last_date = datetime.strptime(last_updated, "%Y-%m-%d")
-                            days_since_update = (datetime.now() - last_date).days
-                            if days_since_update < 7:
-                                logger.info(f"Skipping {domain_name} - updated {days_since_update} days ago")
-                                continue
-                        except Exception:
-                            # If date parsing fails, process anyway
-                            pass
 
                 # Fetch website content
                 html_content = get_domain_content(url)
@@ -419,7 +393,7 @@ def main():
                 # Capture thumbnail
                 thumbnail_path = capture_thumbnail(url, domain_name)
 
-                # Create or update site data
+                # Create site data
                 site_data = {
                     "domain": domain_name,
                     "url": url,
@@ -433,20 +407,10 @@ def main():
                 # Generate description
                 site_data["description"] = generate_description(site_data)
 
-                # Update existing data or add new entry
-                if domain_name in existing_domains:
-                    # Update existing entry
-                    for i, site in enumerate(existing_data):
-                        if site.get("domain") == domain_name:
-                            existing_data[i] = site_data
-                            break
-                    updated_domains += 1
-                    logger.info(f"Updated data for {domain_name}")
-                else:
-                    # Add new entry
-                    existing_data.append(site_data)
-                    new_domains += 1
-                    logger.info(f"Added new data for {domain_name}")
+                # Add new entry
+                existing_data.append(site_data)
+                new_domains += 1
+                logger.info(f"Added new data for {domain_name}")
 
                 # Sleep to avoid rate limiting
                 time.sleep(1)
@@ -458,7 +422,7 @@ def main():
             json.dump(existing_data, f, indent=2)
 
         logger.info(f"Saved data for {len(existing_data)} sites to {DATA_FILE}")
-        logger.info(f"Added {new_domains} new domains, updated {updated_domains} existing domains")
+        logger.info(f"Added {new_domains} new domains")
 
         return True
     except Exception as e:
