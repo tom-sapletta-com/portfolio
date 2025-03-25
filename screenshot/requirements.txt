@@ -1,0 +1,6 @@
+python-dotenv
+selenium
+Pillow
+webdriver-manager
+requests
+beautifulsoup4

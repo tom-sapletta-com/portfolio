@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
 import os
+import sys
 import argparse
 import logging
-import requests
-from PIL import Image
-from io import BytesIO
+import hashlib
+import tempfile
 from urllib.parse import urlparse
-from bs4 import BeautifulSoup
+
+import requests
+from PIL import Image, ImageDraw, ImageFont
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
 
 # Setup logging
 logging.basicConfig(
@@ -19,230 +28,207 @@ logging.basicConfig(
 )
 logger = logging.getLogger("screenshot")
 
-# Constants
-HTTP_TIMEOUT = 10
-USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+# Predefined colors for placeholders
+COLORS = [
+    "#4285F4", "#EA4335", "#FBBC05", "#34A853",
+    "#FF9900", "#146EB4", "#0077B5", "#1DA1F2",
+    "#FF6900", "#8B4513", "#FF7F50", "#6A5ACD",
+    "#32CD32", "#FF4500", "#9370DB", "#3CB371",
+    "#20B2AA", "#B8860B", "#D2691E", "#CD5C5C"
+]
 
 
 def get_color_for_domain(domain):
-    """Generate a consistent color hex code for a domain."""
-    hash_value = 0
-    for char in domain:
-        hash_value = ((hash_value << 5) - hash_value) + ord(char)
-        hash_value = hash_value & 0xFFFFFF
-
-    # Convert to hex and ensure it's 6 characters
-    hex_color = format(hash_value & 0xFFFFFF, '06x')
-    return hex_color
+    """Generate a consistent color for a domain from predefined colors."""
+    hash_obj = hashlib.md5(domain.encode())
+    hash_int = int(hash_obj.hexdigest(), 16)
+    color_index = hash_int % len(COLORS)
+    return COLORS[color_index]
 
 
-def get_initials(domain):
-    """Get initials from domain name."""
-    domain_name = domain.split('.')[0]
-    if len(domain_name) >= 2:
-        return domain_name[:2].upper()
-    return domain_name.upper()
+def create_placeholder_image(domain_name, size=(800, 200)):
+    """Create a visually appealing placeholder image with domain name."""
+    color = get_color_for_domain(domain_name)
+    img = Image.new('RGB', size, color)
+    draw = ImageDraw.Draw(img)
+
+    try:
+        display_name = domain_name.split('.')[0].upper()
+        font_size = min(size) // (3 + min(len(display_name) // 5, 3))
+
+        # Try multiple font options
+        font_paths = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
+        ]
+
+        font = None
+        for font_path in font_paths:
+            try:
+                font = ImageFont.truetype(font_path, font_size)
+                break
+            except IOError:
+                continue
+
+        if not font:
+            font = ImageFont.load_default()
+
+        # Calculate text positioning
+        bbox = font.getbbox(display_name)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+
+        x = (size[0] - text_width) // 2
+        y = (size[1] - text_height) // 2
+
+        # Draw text with shadow
+        shadow_offset = max(1, font_size // 15)
+        draw.text((x + shadow_offset, y + shadow_offset), display_name, fill="rgba(0,0,0,128)", font=font)
+        draw.text((x, y), display_name, fill="white", font=font)
+
+    except Exception as e:
+        logger.warning(f"Could not add text to placeholder: {e}")
+
+    return img
 
 
-def capture_thumbnail(url, output_path=None, size=(300, 200), quality=85):
+def capture_webpage_screenshot(url, output_path, size=(800, 200)):
+    """
+    Capture a full webpage screenshot using Selenium WebDriver.
+
+    Args:
+        url (str): URL of the webpage to screenshot
+        output_path (str): Path to save the screenshot
+        size (tuple): Desired thumbnail size (width, height)
+
+    Returns:
+        bool: True if screenshot successful, False otherwise
+    """
+    try:
+        # Setup Chrome options
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")  # Run in background
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument(f"--window-size={size[0]},{size[1]}")
+
+        # Use WebDriver Manager to handle driver installation
+        service = Service(ChromeDriverManager().install())
+
+        # Initialize the WebDriver
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+
+        # Navigate to the URL
+        driver.get(url)
+
+        # Wait for page to load (up to 10 seconds)
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
+
+        # Take screenshot
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_screenshot:
+            driver.save_screenshot(temp_screenshot.name)
+
+        # Close the browser
+        driver.quit()
+
+        # Open the screenshot and resize
+        with Image.open(temp_screenshot.name) as img:
+            # Crop to desired aspect ratio
+            width, height = img.size
+            crop_height = int(width / 4)
+            cropped_img = img.crop((0, 0, width, min(crop_height, height)))
+
+            # Resize to exact desired size
+            cropped_img = cropped_img.resize(size, Image.LANCZOS)
+
+            # Save the final image
+            cropped_img.save(output_path, 'JPEG', quality=85)
+
+        # Remove temporary file
+        os.unlink(temp_screenshot.name)
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Error capturing screenshot for {url}: {e}")
+        return False
+
+
+def capture_thumbnail(url, output_path=None, size=(800, 200), force_placeholder=False):
     """
     Capture a thumbnail of the website.
 
-    Parameters:
-    -----------
-    url : str
-        The URL of the website to capture
-    output_path : str, optional
-        Path where to save the thumbnail. If None, returns the image object
-    size : tuple, optional
-        Size of the thumbnail (width, height)
-    quality : int, optional
-        JPEG quality (1-100)
+    Args:
+        url (str): URL of the website
+        output_path (str, optional): Path to save the thumbnail
+        size (tuple, optional): Desired thumbnail size
+        force_placeholder (bool, optional): Force placeholder image
 
     Returns:
-    --------
-    str or PIL.Image
-        Path to the saved thumbnail or Image object if output_path is None
+        str or Image: Path to saved thumbnail or Image object
     """
-    try:
-        # Extract domain name for placeholder generation if needed
-        parsed_url = urlparse(url)
-        domain_name = parsed_url.netloc
-        if domain_name.startswith('www.'):
-            domain_name = domain_name[4:]
+    # Extract domain name
+    parsed_url = urlparse(url)
+    domain_name = parsed_url.netloc
+    if domain_name.startswith('www.'):
+        domain_name = domain_name[4:]
 
-        headers = {
-            'User-Agent': USER_AGENT
-        }
+    # Create output directory if needed
+    if output_path:
+        os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
 
-        # First check if the page exists
-        response = requests.head(url, headers=headers, timeout=HTTP_TIMEOUT / 2)
+    # Determine output path
+    output_path = output_path or f"{domain_name}_thumbnail.jpg"
 
-        # Skip if URL doesn't respond properly
-        if response.status_code >= 400:
-            logger.warning(f"URL {url} returned status code {response.status_code}")
-            return False
+    # If forcing placeholder or screenshot fails, create placeholder
+    if force_placeholder or not capture_webpage_screenshot(url, output_path, size):
+        logger.warning(f"Creating placeholder for {domain_name}")
+        img = create_placeholder_image(domain_name, size)
+        img.save(output_path, 'JPEG', quality=85)
 
-        # Get the full page content
-        response = requests.get(url, headers=headers, timeout=HTTP_TIMEOUT)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, 'html.parser')
-
-        # Create output directory if needed and output_path is provided
-        if output_path:
-            os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
-
-        # Strategy 1: Try to find Open Graph image first (usually high quality and representative)
-        og_image = soup.find('meta', property='og:image') or soup.find('meta', attrs={'name': 'og:image'})
-        if og_image and og_image.get('content'):
-            img_url = og_image.get('content')
-            # Handle relative URLs
-            if not img_url.startswith(('http://', 'https://')):
-                base_url = urlparse(url)
-                img_url = f"{base_url.scheme}://{base_url.netloc}{img_url if img_url.startswith('/') else '/' + img_url}"
-
-            try:
-                img_response = requests.get(img_url, headers=headers, timeout=HTTP_TIMEOUT)
-                img_response.raise_for_status()
-                img = Image.open(BytesIO(img_response.content))
-
-                # Convert to RGB for JPG
-                img = img.convert('RGB')
-                # Resize to thumbnail
-                img.thumbnail(size)
-
-                if output_path:
-                    img.save(output_path, 'JPEG', quality=quality)
-                    logger.info(f"Saved OG image thumbnail for {domain_name}")
-                    return output_path
-                return img
-            except Exception as e:
-                logger.warning(f"Could not use og:image for {url}: {e}")
-
-        # Strategy 2: Try to find Twitter Card image
-        twitter_image = soup.find('meta', attrs={'name': 'twitter:image'})
-        if twitter_image and twitter_image.get('content'):
-            img_url = twitter_image.get('content')
-            if not img_url.startswith(('http://', 'https://')):
-                base_url = urlparse(url)
-                img_url = f"{base_url.scheme}://{base_url.netloc}{img_url if img_url.startswith('/') else '/' + img_url}"
-
-            try:
-                img_response = requests.get(img_url, headers=headers, timeout=HTTP_TIMEOUT)
-                img_response.raise_for_status()
-                img = Image.open(BytesIO(img_response.content))
-
-                # Convert to RGB for JPG
-                img = img.convert('RGB')
-                # Resize to thumbnail
-                img.thumbnail(size)
-
-                if output_path:
-                    img.save(output_path, 'JPEG', quality=quality)
-                    logger.info(f"Saved Twitter Card image thumbnail for {domain_name}")
-                    return output_path
-                return img
-            except Exception as e:
-                logger.warning(f"Could not use twitter:image for {url}: {e}")
-
-        # Strategy 3: Find the largest image on the page
-        largest_image = None
-        max_size = 0
-        min_acceptable_size = 5000  # Minimum pixel count (e.g., 50x100)
-
-        for img_tag in soup.find_all('img'):
-            src = img_tag.get('src')
-            if not src:
-                continue
-
-            # Skip tiny icons, spacers, etc.
-            if any(skip in src.lower() for skip in ['icon', 'logo', 'spacer', 'blank', 'pixel']):
-                continue
-
-            # Convert relative URLs to absolute
-            if not src.startswith(('http://', 'https://')):
-                base_url = urlparse(url)
-                src = f"{base_url.scheme}://{base_url.netloc}{src if src.startswith('/') else '/' + src}"
-
-            try:
-                img_response = requests.get(src, headers=headers, timeout=HTTP_TIMEOUT / 2)
-                img_response.raise_for_status()
-                img = Image.open(BytesIO(img_response.content))
-
-                # Calculate image size
-                size_pixels = img.width * img.height
-
-                # Update largest image if this one is bigger
-                if size_pixels > max_size and size_pixels > min_acceptable_size:
-                    max_size = size_pixels
-                    largest_image = img
-            except Exception:
-                continue
-
-        # Save the largest image as thumbnail
-        if largest_image:
-            largest_image = largest_image.convert('RGB')  # Convert to RGB for JPG
-            largest_image.thumbnail(size)  # Resize to thumbnail
-
-            if output_path:
-                largest_image.save(output_path, 'JPEG', quality=quality)
-                logger.info(f"Saved largest image thumbnail for {domain_name}")
-                return output_path
-            return largest_image
-
-        # Strategy 4: Create a placeholder with domain initials
-        logger.warning(f"No suitable images found for {domain_name}, creating placeholder")
-        initials = get_initials(domain_name)
-        color = get_color_for_domain(domain_name)
-
-        # Create a placeholder image with the domain's initials
-        img = Image.new('RGB', size, f"#{color}")
-        # Would need PIL's ImageDraw to add text, but we'll skip that for simplicity
-
-        if output_path:
-            img.save(output_path, 'JPEG', quality=quality)
-            logger.info(f"Created placeholder thumbnail for {domain_name}")
-            return output_path
-        return img
-
-    except Exception as e:
-        logger.error(f"Error capturing thumbnail for {url}: {e}")
-        return None
+    return output_path
 
 
 def main():
     """Command-line interface for the screenshot tool."""
-    parser = argparse.ArgumentParser(description='Capture website thumbnails')
+    parser = argparse.ArgumentParser(description='Capture website thumbnails in 1:4 ratio')
     parser.add_argument('url', help='URL of the website to capture')
-    parser.add_argument('-o', '--output', help='Output file path', default='thumbnail.jpg')
-    parser.add_argument('-w', '--width', type=int, default=300, help='Thumbnail width')
-    parser.add_argument('--height', type=int, default=200, help='Thumbnail height')  # Removed -h
-    parser.add_argument('-q', '--quality', type=int, default=85, help='JPEG quality (1-100)')
+    parser.add_argument('-o', '--output', help='Output file path')
+    parser.add_argument('-w', '--width', type=int, default=800, help='Thumbnail width')
+    parser.add_argument('--height', type=int, default=200, help='Thumbnail height')
+    parser.add_argument('-p', '--placeholder', action='store_true', help='Force placeholder image')
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
 
     args = parser.parse_args()
 
-    # Set logging level based on verbose flag
+    # Validate aspect ratio
+    if args.width / args.height != 4:
+        print("Warning: Dimensions do not maintain 1:4 aspect ratio. Recommended sizes: 800x200, 1200x300, etc.")
+
+    # Set logging level
     if args.verbose:
         logger.setLevel(logging.DEBUG)
 
-    # Capture thumbnail
-    result = capture_thumbnail(
-        args.url,
-        args.output,
-        (args.width, args.height),
-        args.quality
-    )
-
-    if result:
-        print(f"Thumbnail saved to {args.output}")
+    try:
+        # Capture thumbnail
+        result = capture_thumbnail(
+            args.url,
+            args.output,
+            (args.width, args.height),
+            args.placeholder
+        )
+        print(f"Thumbnail saved to {result}")
         return 0
-    else:
-        print(f"Failed to capture thumbnail for {args.url}")
+    except Exception as e:
+        print(f"Failed to capture thumbnail: {e}")
         return 1
 
 
 if __name__ == "__main__":
-    import sys
-
     sys.exit(main())
+
+# Wymagane zależności:
+# pip install selenium webdriver-manager pillow requests
