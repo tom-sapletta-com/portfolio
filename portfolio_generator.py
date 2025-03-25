@@ -17,9 +17,12 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from tech_patterns import tech_patterns
 from common_themes import common_themes
 
+
+
+
 # Configuration
-DOMAINS_FILE = "portfolio.txt"
-OUTPUT_DIR = "portfolio"
+DOMAINS_FILE = "portfolio_http.txt"
+OUTPUT_DIR = "media"
 THUMBNAILS_DIR = os.path.join(OUTPUT_DIR, "thumbnails")
 DATA_FILE = os.path.join(OUTPUT_DIR, "data.json")
 GIT_REPO_PATH = OUTPUT_DIR
@@ -158,7 +161,7 @@ def analyze_content(html_content):
         }
 
 
-def capture_thumbnail(url, domain_name):
+def capture_thumbnail(current_url, domain_name):
     """
     Capture a thumbnail of the website.
     - Handles www and non-www versions of the domain
@@ -167,144 +170,132 @@ def capture_thumbnail(url, domain_name):
     """
     try:
         # Try both www and non-www versions if needed
-        urls_to_try = [url]
-        parsed_url = urlparse(url)
 
-        # If URL doesn't have www, add a version with www
-        if not parsed_url.netloc.startswith('www.'):
-            www_url = f"{parsed_url.scheme}://www.{parsed_url.netloc}{parsed_url.path}"
-            urls_to_try.append(www_url)
-        # If URL has www, add a version without www
-        elif parsed_url.netloc.startswith('www.'):
-            non_www_url = f"{parsed_url.scheme}://{parsed_url.netloc[4:]}{parsed_url.path}"
-            urls_to_try.append(non_www_url)
 
         headers = {
             'User-Agent': USER_AGENT
         }
 
         # Try each URL variation
-        for current_url in urls_to_try:
-            try:
-                # First check if the page exists
-                response = requests.head(current_url, headers=headers, timeout=HTTP_TIMEOUT / 2)
+        try:
+            # First check if the page exists
+            response = requests.head(current_url, headers=headers, timeout=HTTP_TIMEOUT / 2)
 
-                # Skip to next URL if this one doesn't respond properly
-                if response.status_code >= 400:
-                    logger.warning(f"URL {current_url} returned status code {response.status_code}")
+            # Skip to next URL if this one doesn't respond properly
+            if response.status_code >= 400:
+                logger.warning(f"URL {current_url} returned status code {response.status_code}")
+                return false
+            # Get the full page content
+            response = requests.get(current_url, headers=headers, timeout=HTTP_TIMEOUT)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            # Create thumbnails directory if it doesn't exist
+            os.makedirs(THUMBNAILS_DIR, exist_ok=True)
+            thumbnail_path = os.path.join(THUMBNAILS_DIR, f"{domain_name}.jpg")
+
+            # Strategy 1: Try to find Open Graph image first (usually high quality and representative)
+            og_image = soup.find('meta', property='og:image') or soup.find('meta', attrs={'name': 'og:image'})
+            if og_image and og_image.get('content'):
+                img_url = og_image.get('content')
+                # Handle relative URLs
+                if not img_url.startswith(('http://', 'https://')):
+                    base_url = urlparse(current_url)
+                    img_url = f"{base_url.scheme}://{base_url.netloc}{img_url if img_url.startswith('/') else '/' + img_url}"
+
+                try:
+                    img_response = requests.get(img_url, headers=headers, timeout=HTTP_TIMEOUT)
+                    img_response.raise_for_status()
+                    img = Image.open(BytesIO(img_response.content))
+
+                    # Save thumbnail
+                    img = img.convert('RGB')  # Convert to RGB for JPG
+                    img.thumbnail((300, 200))  # Resize to thumbnail
+                    img.save(thumbnail_path, 'JPEG', quality=85)
+                    logger.info(f"Saved OG image thumbnail for {domain_name}")
+                    return thumbnail_path
+                except Exception as e:
+                    logger.warning(f"Could not use og:image for {current_url}: {e}")
+
+            # Strategy 2: Try to find Twitter Card image
+            twitter_image = soup.find('meta', attrs={'name': 'twitter:image'})
+            if twitter_image and twitter_image.get('content'):
+                img_url = twitter_image.get('content')
+                if not img_url.startswith(('http://', 'https://')):
+                    base_url = urlparse(current_url)
+                    img_url = f"{base_url.scheme}://{base_url.netloc}{img_url if img_url.startswith('/') else '/' + img_url}"
+
+                try:
+                    img_response = requests.get(img_url, headers=headers, timeout=HTTP_TIMEOUT)
+                    img_response.raise_for_status()
+                    img = Image.open(BytesIO(img_response.content))
+
+                    # Save thumbnail
+                    img = img.convert('RGB')
+                    img.thumbnail((300, 200))
+                    img.save(thumbnail_path, 'JPEG', quality=85)
+                    logger.info(f"Saved Twitter Card image thumbnail for {domain_name}")
+                    return thumbnail_path
+                except Exception as e:
+                    logger.warning(f"Could not use twitter:image for {current_url}: {e}")
+
+            # Strategy 3: Find the largest image on the page
+            largest_image = None
+            max_size = 0
+            min_acceptable_size = 5000  # Minimum pixel count (e.g., 50x100)
+
+            for img in soup.find_all('img'):
+                src = img.get('src')
+                if not src:
                     continue
 
-                # Get the full page content
-                response = requests.get(current_url, headers=headers, timeout=HTTP_TIMEOUT)
-                response.raise_for_status()
-                soup = BeautifulSoup(response.text, 'html.parser')
+                # Skip tiny icons, spacers, etc.
+                if any(skip in src.lower() for skip in ['icon', 'logo', 'spacer', 'blank', 'pixel']):
+                    continue
 
-                # Create thumbnails directory if it doesn't exist
-                os.makedirs(THUMBNAILS_DIR, exist_ok=True)
-                thumbnail_path = os.path.join(THUMBNAILS_DIR, f"{domain_name}.jpg")
+                # Convert relative URLs to absolute
+                if not src.startswith(('http://', 'https://')):
+                    base_url = urlparse(current_url)
+                    src = f"{base_url.scheme}://{base_url.netloc}{src if src.startswith('/') else '/' + src}"
 
-                # Strategy 1: Try to find Open Graph image first (usually high quality and representative)
-                og_image = soup.find('meta', property='og:image') or soup.find('meta', attrs={'name': 'og:image'})
-                if og_image and og_image.get('content'):
-                    img_url = og_image.get('content')
-                    # Handle relative URLs
-                    if not img_url.startswith(('http://', 'https://')):
-                        base_url = urlparse(current_url)
-                        img_url = f"{base_url.scheme}://{base_url.netloc}{img_url if img_url.startswith('/') else '/' + img_url}"
+                try:
+                    img_response = requests.get(src, headers=headers, timeout=HTTP_TIMEOUT / 2)
+                    img_response.raise_for_status()
+                    img = Image.open(BytesIO(img_response.content))
 
-                    try:
-                        img_response = requests.get(img_url, headers=headers, timeout=HTTP_TIMEOUT)
-                        img_response.raise_for_status()
-                        img = Image.open(BytesIO(img_response.content))
+                    # Calculate image size
+                    size = img.width * img.height
 
-                        # Save thumbnail
-                        img = img.convert('RGB')  # Convert to RGB for JPG
-                        img.thumbnail((300, 200))  # Resize to thumbnail
-                        img.save(thumbnail_path, 'JPEG', quality=85)
-                        logger.info(f"Saved OG image thumbnail for {domain_name}")
-                        return thumbnail_path
-                    except Exception as e:
-                        logger.warning(f"Could not use og:image for {current_url}: {e}")
+                    # Update largest image if this one is bigger
+                    if size > max_size and size > min_acceptable_size:
+                        max_size = size
+                        largest_image = img
+                except Exception:
+                    continue
 
-                # Strategy 2: Try to find Twitter Card image
-                twitter_image = soup.find('meta', attrs={'name': 'twitter:image'})
-                if twitter_image and twitter_image.get('content'):
-                    img_url = twitter_image.get('content')
-                    if not img_url.startswith(('http://', 'https://')):
-                        base_url = urlparse(current_url)
-                        img_url = f"{base_url.scheme}://{base_url.netloc}{img_url if img_url.startswith('/') else '/' + img_url}"
-
-                    try:
-                        img_response = requests.get(img_url, headers=headers, timeout=HTTP_TIMEOUT)
-                        img_response.raise_for_status()
-                        img = Image.open(BytesIO(img_response.content))
-
-                        # Save thumbnail
-                        img = img.convert('RGB')
-                        img.thumbnail((300, 200))
-                        img.save(thumbnail_path, 'JPEG', quality=85)
-                        logger.info(f"Saved Twitter Card image thumbnail for {domain_name}")
-                        return thumbnail_path
-                    except Exception as e:
-                        logger.warning(f"Could not use twitter:image for {current_url}: {e}")
-
-                # Strategy 3: Find the largest image on the page
-                largest_image = None
-                max_size = 0
-                min_acceptable_size = 5000  # Minimum pixel count (e.g., 50x100)
-
-                for img in soup.find_all('img'):
-                    src = img.get('src')
-                    if not src:
-                        continue
-
-                    # Skip tiny icons, spacers, etc.
-                    if any(skip in src.lower() for skip in ['icon', 'logo', 'spacer', 'blank', 'pixel']):
-                        continue
-
-                    # Convert relative URLs to absolute
-                    if not src.startswith(('http://', 'https://')):
-                        base_url = urlparse(current_url)
-                        src = f"{base_url.scheme}://{base_url.netloc}{src if src.startswith('/') else '/' + src}"
-
-                    try:
-                        img_response = requests.get(src, headers=headers, timeout=HTTP_TIMEOUT / 2)
-                        img_response.raise_for_status()
-                        img = Image.open(BytesIO(img_response.content))
-
-                        # Calculate image size
-                        size = img.width * img.height
-
-                        # Update largest image if this one is bigger
-                        if size > max_size and size > min_acceptable_size:
-                            max_size = size
-                            largest_image = img
-                    except Exception:
-                        continue
-
-                # Save the largest image as thumbnail
-                if largest_image:
-                    largest_image = largest_image.convert('RGB')  # Convert to RGB for JPG
-                    largest_image.thumbnail((300, 200))  # Resize to thumbnail
-                    largest_image.save(thumbnail_path, 'JPEG', quality=85)
-                    logger.info(f"Saved largest image thumbnail for {domain_name}")
-                    return thumbnail_path
-
-                # Strategy 4: Create a placeholder with domain initials
-                logger.warning(f"No suitable images found for {domain_name}, creating placeholder")
-                initials = get_initials(domain_name)
-                color = get_color_for_domain(domain_name)
-
-                # Create a placeholder image with the domain's initials
-                img = Image.new('RGB', (300, 200), f"#{color}")
-                # Would need PIL's ImageDraw to add text, but we'll skip that for simplicity
-                img.save(thumbnail_path, 'JPEG', quality=85)
-                logger.info(f"Created placeholder thumbnail for {domain_name}")
+            # Save the largest image as thumbnail
+            if largest_image:
+                largest_image = largest_image.convert('RGB')  # Convert to RGB for JPG
+                largest_image.thumbnail((300, 200))  # Resize to thumbnail
+                largest_image.save(thumbnail_path, 'JPEG', quality=85)
+                logger.info(f"Saved largest image thumbnail for {domain_name}")
                 return thumbnail_path
 
-            except requests.exceptions.RequestException as e:
-                logger.warning(f"Error accessing {current_url}: {e}")
-                continue
+            # Strategy 4: Create a placeholder with domain initials
+            logger.warning(f"No suitable images found for {domain_name}, creating placeholder")
+            initials = get_initials(domain_name)
+            color = get_color_for_domain(domain_name)
+
+            # Create a placeholder image with the domain's initials
+            img = Image.new('RGB', (300, 200), f"#{color}")
+            # Would need PIL's ImageDraw to add text, but we'll skip that for simplicity
+            img.save(thumbnail_path, 'JPEG', quality=85)
+            logger.info(f"Created placeholder thumbnail for {domain_name}")
+            return thumbnail_path
+
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Error accessing {current_url}: {e}")
+            return False
 
         # If we get here, all URL variations failed
         logger.error(f"All URL variations failed for {domain_name}")
@@ -342,64 +333,6 @@ def generate_description(site):
     keyword_text = ", ".join(keywords[:3])
     return f"This {site.get('theme', 'website').lower()} focuses on {keyword_text}."
 
-def init_git_repo():
-    """Initialize or update git repository."""
-    try:
-        # Ensure output directory exists
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-        # Check if it's already a git repo
-        try:
-            repo = git.Repo(GIT_REPO_PATH)
-            logger.info("Git repository already initialized")
-        except git.exc.InvalidGitRepositoryError:
-            # Initialize new repo
-            repo = git.Repo.init(GIT_REPO_PATH)
-            logger.info("Initialized new git repository")
-
-            # Add .gitignore
-            with open(os.path.join(GIT_REPO_PATH, ".gitignore"), "w") as f:
-                f.write(
-                    "__pycache__/\n*.py[cod]\n*$py.class\n.env\n.venv\nenv/\nvenv/\nENV/\nenv.bak/\nvenv.bak/\n")
-
-            # Initial commit
-            repo.git.add(".")
-            repo.git.commit("-m", "Initial commit")
-
-        return repo
-    except Exception as e:
-        logger.error(f"Error initializing git repository: {e}")
-        return None
-
-def commit_and_push_changes(repo):
-    """Commit and push changes to git repository."""
-    if not repo:
-        return
-
-    try:
-        # Check if there are changes
-        if not repo.is_dirty() and not repo.untracked_files:
-            logger.info("No changes to commit")
-            return
-
-        # Add all changes
-        repo.git.add(".")
-
-        # Commit changes
-        commit_message = f"Update portfolio data - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        repo.git.commit("-m", commit_message)
-        logger.info(f"Committed changes: {commit_message}")
-
-        # Push to remote if configured
-        try:
-            origin = repo.remote(name=GIT_REMOTE)
-            origin.push(GIT_BRANCH)
-            logger.info(f"Pushed changes to {GIT_REMOTE}/{GIT_BRANCH}")
-        except Exception as e:
-            logger.warning(f"Could not push to remote: {e}")
-    except Exception as e:
-        logger.error(f"Error committing changes: {e}")
-
 def find_most_common_theme(portfolio_data):
     """Find the most common theme in the portfolio data."""
     themes = {}
@@ -420,9 +353,6 @@ def main():
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         os.makedirs(THUMBNAILS_DIR, exist_ok=True)
 
-        # Initialize git repository
-        repo = init_git_repo()
-
         # Load existing data if available
         existing_data = []
         existing_domains = {}
@@ -442,25 +372,23 @@ def main():
 
         # Load domains from file
         try:
-            with open(DOMAINS_FILE, 'r', encoding='utf-8') as f:
-                domains = [line.strip() for line in f if line.strip()]
-            logger.info(f"Loaded {len(domains)} domains from {DOMAINS_FILE}")
+            from domain2url.load_urls_from_csv import load_urls_from_csv
+
+            urls = load_urls_from_csv('portfolio_http.txt', only_available=True)
+            logger.info(f"Loaded {len(urls)} domains from {DOMAINS_FILE}")
         except Exception as e:
             logger.error(f"Error loading domains: {e}")
-            domains = []
+            urls = []
 
         # Process each domain
         new_domains = 0
         updated_domains = 0
 
-        for domain in domains:
+        for url_info in urls:
             try:
-                # Normalize URL
-                url = normalize_url(domain)
-                domain_name = urlparse(url).netloc
-
-                # Create a hash of the domain name for filenames
-                domain_hash = hashlib.md5(domain_name.encode()).hexdigest()
+                # Extract URL and domain
+                url = url_info['url']
+                domain_name = url_info['domain']
 
                 logger.info(f"Processing {domain_name}")
 
@@ -523,7 +451,7 @@ def main():
                 # Sleep to avoid rate limiting
                 time.sleep(1)
             except Exception as e:
-                logger.error(f"Error processing {domain}: {e}")
+                logger.error(f"Error processing {url_info}: {e}")
 
         # Save updated data
         with open(DATA_FILE, 'w', encoding='utf-8') as f:
@@ -531,9 +459,6 @@ def main():
 
         logger.info(f"Saved data for {len(existing_data)} sites to {DATA_FILE}")
         logger.info(f"Added {new_domains} new domains, updated {updated_domains} existing domains")
-
-        # Commit and push changes
-        commit_and_push_changes(repo)
 
         return True
     except Exception as e:
