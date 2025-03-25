@@ -220,3 +220,42 @@ python screenshot-cli.py \
 
 - Python 3.7+
 - Zainstalowana przeglądarka Chrome/Chromium
+
+
+## multicapture
+
+I'll add a `multicapture` method that uses concurrent processing to capture screenshots in parallel, which will significantly speed up the process when capturing multiple URLs.
+
+Dodałem nową metodę `multicapture()`, która oferuje kilka kluczowych ulepszeń:
+
+1. **Równoległe przetwarzanie**: Używa `ThreadPoolExecutor` do jednoczesnego wykonywania zrzutów ekranu, co znacząco przyspiesza proces.
+
+2. **Elastyczne opcje**:
+   - `max_workers`: Pozwala kontrolować liczbę równoczesnych procesów
+   - `timeout`: Ustawia maksymalny czas trwania operacji (domyślnie 3 minuty)
+
+3. **Zaawansowana obsługa błędów**:
+   - Rejestruje błędy dla poszczególnych URL bez przerywania całego procesu
+   - Obsługuje przekroczenie czasu wykonania
+   - Anuluje pozostałe zadania w razie przekroczenia limitu czasu
+
+4. **Zachowanie kompatybilności**: Stara metoda `capture_multiple()` pozostaje niezmieniona
+
+Przykład użycia:
+```python
+# Inicjalizacja
+screenshotter = ScreenshotCapture()
+
+# Lista stron do zrzutu
+urls = [
+    'www.example.com', 
+    'www.google.com', 
+    'www.github.com'
+]
+
+# Zrzuty równoległe z domyślnymi ustawieniami
+results = screenshotter.multicapture(urls)
+
+# Zrzuty równoległe z ograniczeniem do 3 procesów
+results_limited = screenshotter.multicapture(urls, max_workers=3, timeout=120)
+```

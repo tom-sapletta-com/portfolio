@@ -215,10 +215,16 @@ def find_most_common_theme(portfolio_data):
     # Return the theme with the highest count
     return max(themes.items(), key=lambda x: x[1])[0]
 
-def main_one():
-    """Main function to generate the portfolio."""
+
+def prepare_output_environment():
+    """
+    Prepare output directories and remove existing data file.
+
+    Returns:
+        bool: True if preparation was successful, False otherwise
+    """
     try:
-        # Usuń istniejący plik data.json przed rozpoczęciem
+        # Remove existing data.json file
         if os.path.exists(DATA_FILE):
             os.remove(DATA_FILE)
             logger.info(f"Usunięto poprzedni plik {DATA_FILE}")
@@ -227,110 +233,165 @@ def main_one():
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         os.makedirs(THUMBNAILS_DIR, exist_ok=True)
 
-        # Load domains from file
-        try:
-            from domain2url.load_urls_from_csv import load_urls_from_csv
+        return True
+    except Exception as e:
+        logger.error(f"Error preparing output environment: {e}")
+        return False
 
-            urls = load_urls_from_csv('portfolio_http.txt', only_available=True)
-            logger.info(f"Loaded {len(urls)} domains from {DOMAINS_FILE}")
-        except Exception as e:
-            logger.error(f"Error loading domains: {e}")
-            urls = []
 
-        # Process each domain
-        existing_data = []
-        existing_domains = {}
-        new_domains = 0
+def load_domain_urls():
+    """
+    Load URLs from the domains file.
 
-        for url_info in urls:
-            try:
-                # Extract URL and domain
-                url = url_info['url']
-                domain_name = url_info['domain']
+    Returns:
+        list: List of domain URLs, or empty list if loading fails
+    """
+    try:
+        from domain2url.load_urls_from_csv import load_urls_from_csv
 
-                logger.info(f"Processing {domain_name}")
+        urls = load_urls_from_csv('portfolio_http.txt', only_available=True)
+        logger.info(f"Loaded {len(urls)} domains from {DOMAINS_FILE}")
+        return urls
+    except Exception as e:
+        logger.error(f"Error loading domains: {e}")
+        return []
 
-                # Fetch website content
-                html_content = get_domain_content(url)
-                if not html_content:
-                    logger.warning(f"Could not fetch content for {domain_name}")
-                    continue
 
-                # Analyze content
-                analysis = analyze_content(html_content)
+def process_single_domain(url_info, screenshotter=None):
+    """
+    Process a single domain for portfolio generation.
 
-                # Capture thumbnail
-                from screenshot.ScreenshotCapture import ScreenshotCapture
-                # Zrzut jednej strony
-                screenshotter = ScreenshotCapture(output_dir="media/thumbnails")
-                thumbnail_path = screenshotter.capture(url)
+    Args:
+        url_info (dict): Dictionary containing domain information
+        screenshotter (ScreenshotCapture, optional): Screenshot capture instance
 
-                # Create site data
-                site_data = {
-                    "domain": domain_name,
-                    "url": url,
-                    "thumbnail": thumbnail_path,
-                    "theme": analysis["theme"],
-                    "keywords": analysis["keywords"],
-                    "technologies": analysis["technologies"],
-                    "last_updated": datetime.now().strftime("%Y-%m-%d"),
-                    "description": ""
-                }
+    Returns:
+        dict or None: Site data dictionary if successful, None otherwise
+    """
+    try:
+        # Extract URL and domain
+        url = url_info['url']
+        domain_name = url_info['domain']
 
-                # Generate description
-                site_data["description"] = generate_description(site_data)
+        logger.info(f"Processing {domain_name}")
 
-                # Add new entry
-                existing_data.append(site_data)
-                new_domains += 1
-                logger.info(f"Added new data for {domain_name}")
+        # Fetch website content
+        html_content = get_domain_content(url)
+        if not html_content:
+            logger.warning(f"Could not fetch content for {domain_name}")
+            return None
 
-                # Sleep to avoid rate limiting
-                time.sleep(1)
-            except Exception as e:
-                logger.error(f"Error processing {url_info}: {e}")
+        # Analyze content
+        analysis = analyze_content(html_content)
 
-        # Save updated data
+        # Capture thumbnail
+        if screenshotter:
+            thumbnail_path = screenshotter.capture(url)
+        else:
+            from screenshot.ScreenshotCapture import ScreenshotCapture
+            screenshotter = ScreenshotCapture(output_dir="media/thumbnails")
+            thumbnail_path = screenshotter.capture(url)
+
+        # Create site data
+        site_data = {
+            "domain": domain_name,
+            "url": url,
+            "thumbnail": thumbnail_path,
+            "theme": analysis["theme"],
+            "keywords": analysis["keywords"],
+            "technologies": analysis["technologies"],
+            "last_updated": datetime.now().strftime("%Y-%m-%d"),
+            "description": ""
+        }
+
+        # Generate description
+        site_data["description"] = generate_description(site_data)
+
+        return site_data
+    except Exception as e:
+        logger.error(f"Error processing {url_info}: {e}")
+        return None
+
+
+def save_portfolio_data(existing_data):
+    """
+    Save portfolio data to JSON file.
+
+    Args:
+        existing_data (list): List of site data dictionaries
+
+    Returns:
+        bool: True if save was successful, False otherwise
+    """
+    try:
         with open(DATA_FILE, 'w', encoding='utf-8') as f:
             json.dump(existing_data, f, indent=2)
 
         logger.info(f"Saved data for {len(existing_data)} sites to {DATA_FILE}")
-        logger.info(f"Added {new_domains} new domains")
+        logger.info(f"Added {len(existing_data)} new domains")
 
         return True
     except Exception as e:
-        logger.error(f"Error in main function: {e}")
+        logger.error(f"Error saving portfolio data: {e}")
         return False
 
 
-def main():
-    """Main function to generate the portfolio."""
+def one():
+    """
+    Main function to generate the portfolio using sequential screenshot capture.
+
+    Returns:
+        bool: True if portfolio generation was successful, False otherwise
+    """
     try:
-        # Usuń istniejący plik data.json przed rozpoczęciem
-        if os.path.exists(DATA_FILE):
-            os.remove(DATA_FILE)
-            logger.info(f"Usunięto poprzedni plik {DATA_FILE}")
+        # Prepare environment
+        if not prepare_output_environment():
+            return False
 
-        # Create output directories
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-        os.makedirs(THUMBNAILS_DIR, exist_ok=True)
+        # Load domain URLs
+        urls = load_domain_urls()
+        if not urls:
+            return False
 
-        # Load domains from file
-        try:
-            from domain2url.load_urls_from_csv import load_urls_from_csv
-
-            urls = load_urls_from_csv('portfolio_http.txt', only_available=True)
-            logger.info(f"Loaded {len(urls)} domains from {DOMAINS_FILE}")
-        except Exception as e:
-            logger.error(f"Error loading domains: {e}")
-            urls = []
-
-        # Process each domain
+        # Process domains sequentially
         existing_data = []
-        existing_domains = {}
-        new_domains = 0
 
-        # Prepare lists for multicapture
+        for url_info in urls:
+            # Process single domain
+            site_data = process_single_domain(url_info)
+
+            if site_data:
+                existing_data.append(site_data)
+
+                # Minimal sleep to prevent potential rate limiting
+                time.sleep(1)
+
+        # Save portfolio data
+        return save_portfolio_data(existing_data)
+
+    except Exception as e:
+        logger.error(f"Error in main_one function: {e}")
+        return False
+
+
+def multi():
+    """
+    Main function to generate the portfolio using parallel screenshot capture.
+
+    Returns:
+        bool: True if portfolio generation was successful, False otherwise
+    """
+    try:
+        # Prepare environment
+        if not prepare_output_environment():
+            return False
+
+        # Load domain URLs
+        urls = load_domain_urls()
+        if not urls:
+            return False
+
+        # Prepare URLs for parallel capture
         urls_to_capture = [url_info['url'] for url_info in urls]
 
         # Capture screenshots in parallel
@@ -348,68 +409,36 @@ def main():
         # Create a mapping of URL to thumbnail path
         thumbnail_map = dict(zip(urls_to_capture, thumbnail_paths))
 
+        # Process domains
+        existing_data = []
+
         for url_info in urls:
-            try:
-                # Extract URL and domain
-                url = url_info['url']
-                domain_name = url_info['domain']
+            url = url_info['url']
 
-                logger.info(f"Processing {domain_name}")
+            # Use multicapture result
+            screenshotter.output_dir = "media/thumbnails"
+            screenshotter.thumbnail_path = thumbnail_map.get(url)
 
-                # Fetch website content
-                html_content = get_domain_content(url)
-                if not html_content:
-                    logger.warning(f"Could not fetch content for {domain_name}")
-                    continue
+            # Process single domain
+            site_data = process_single_domain(url_info, screenshotter)
 
-                # Analyze content
-                analysis = analyze_content(html_content)
-
-                # Get thumbnail path from multicapture results
-                thumbnail_path = thumbnail_map.get(url)
-
-                # Create site data
-                site_data = {
-                    "domain": domain_name,
-                    "url": url,
-                    "thumbnail": thumbnail_path,
-                    "theme": analysis["theme"],
-                    "keywords": analysis["keywords"],
-                    "technologies": analysis["technologies"],
-                    "last_updated": datetime.now().strftime("%Y-%m-%d"),
-                    "description": ""
-                }
-
-                # Generate description
-                site_data["description"] = generate_description(site_data)
-
-                # Add new entry
+            if site_data:
                 existing_data.append(site_data)
-                new_domains += 1
-                logger.info(f"Added new data for {domain_name}")
 
                 # Minimal sleep to prevent potential rate limiting
                 time.sleep(0.5)
-            except Exception as e:
-                logger.error(f"Error processing {url_info}: {e}")
 
-        # Save updated data
-        with open(DATA_FILE, 'w', encoding='utf-8') as f:
-            json.dump(existing_data, f, indent=2)
+        # Save portfolio data
+        return save_portfolio_data(existing_data)
 
-        logger.info(f"Saved data for {len(existing_data)} sites to {DATA_FILE}")
-        logger.info(f"Added {new_domains} new domains")
-
-        return True
     except Exception as e:
         logger.error(f"Error in main function: {e}")
         return False
 
-
 if __name__ == "__main__":
     # Run once
-    #success = main_one()
-    success = main()
+    success = one()
+    # success = multi()
 
     if success:
         logger.info("Portfolio generation completed successfully")

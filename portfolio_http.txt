@@ -31,7 +31,7 @@ inspectomat.com,https://www.inspectomat.com,True
 locamera.com,https://www.locamera.com,True
 mediainspect.com,https://www.mediainspect.com,True
 medianon.com,https://www.medianon.com,True
-militarity.com,https://www.militarity.com,True
+militarity.com,https://militarity.com,True
 moduletool.com,https://www.moduletool.com,True
 modware.org,https://www.modware.org,True
 multigit.com,https://www.multigit.com,True
