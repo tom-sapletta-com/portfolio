@@ -106,3 +106,117 @@ sudo dnf install google-chrome-stable
 
 # For Chromium
 sudo dnf install chromium
+
+
+Stworzyłem trzy pliki: bibliotekę, skrypt konsolowy i plik __init__.py dla pakietu.
+
+Stworzyłem kompleksowe rozwiązanie do przechwytywania zrzutów ekranu:
+
+🗂️ Struktura projektu:
+```
+screenshot_library/
+│
+├── screenshot_library/
+│   ├── __init__.py          # Inicjalizacja pakietu
+│   ├── screenshot_library.py # Główna biblioteka
+│   └── screenshot_cli.py    # Interfejs wiersza poleceń
+│
+├── setup.py                 # Konfiguracja instalacji
+└── README.md                # Dokumentacja
+```
+
+🔑 Kluczowe cechy:
+
+1. Biblioteka `ScreenshotCapture`:
+   - Przechwytywanie zrzutów ekranu
+   - Obsługa jednej i wielu stron
+   - Konfigurowalne proporcje i rozmiary
+   - Zaawansowana obsługa błędów
+
+2. Interfejs CLI:
+   - Prosty w użyciu 
+   - Opcje dostosowania zrzutów
+   - Możliwość przechwycenia wielu stron
+
+3. Możliwość instalacji jako pakiet
+
+Przykłady użycia:
+
+W kodzie Pythona:
+```python
+from screenshot_library import ScreenshotCapture
+
+# Zrzut jednej strony
+screenshotter = ScreenshotCapture()
+screenshotter.capture('example.com')
+
+# Zrzut wielu stron
+screenshotter.capture_multiple(['python.org', 'github.com'])
+```
+
+Z linii poleceń:
+```bash
+# Podstawowe użycie
+screenshot-cli example.com python.org
+
+# Zaawansowane opcje
+screenshot-cli -o moje_zrzuty -w 1600 example.com
+```
+
+Wymagane biblioteki:
+```bash
+pip install selenium webdriver-manager pillow
+```
+
+Chciałbyś, żebym jeszcze coś doprecyzował lub zmodyfikował?
+
+
+# Screenshot Library
+
+Biblioteka do przechwytywania zrzutów ekranu stron internetowych.
+
+## Instalacja
+
+```bash
+pip install .
+```
+
+## Użycie jako biblioteka
+
+```python
+from screenshot_library import ScreenshotCapture
+
+# Utworzenie instancji
+screenshotter = ScreenshotCapture(output_dir='moje_zrzuty')
+
+# Zrzut jednej strony
+screenshotter.capture('https://www.example.com')
+
+# Zrzut wielu stron
+urls = ['https://www.python.org', 'https://www.github.com']
+screenshotter.capture_multiple(urls)
+```
+
+## Użycie z linii poleceń
+
+```bash
+# Zrzut jednej strony
+python screenshot-cli.py https://www.example.com
+
+# Zrzut wielu stron
+python screenshot-cli.py https://www.python.org https://www.github.com
+
+# Opcje zaawansowane
+python screenshot-cli.py \
+    -o custom_screenshots \
+    -w 1600 \
+    --height 900 \
+    --crop-width 4 \
+    --crop-height 1 \
+    https://www.example.com https://www.python.org
+```
+
+## Wymagania
+
+- Python 3.7+
+- Zainstalowana przeglądarka Chrome/Chromium

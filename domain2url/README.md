@@ -25,27 +25,31 @@ ONLY_AVAILABLE=true
 
 1. Podstawowe użycie:
 ```bash
-python url_generator.py domains.txt
+python domain2url/cli.py domains.txt
+```
+
+```bash
+python domain2url/cli.py portfolio.txt -o portfolio_http.txt
 ```
 
 2. Z niestandardowym plikiem wyjściowym:
 ```bash
-python url_generator.py domains.txt -o moje_url.csv
+python domain2url/cli.py domains.txt -o moje_url.csv
 ```
 
 3. Tylko dostępne URL:
 ```bash
-python url_generator.py domains.txt -a
+python domain2url/cli.py domains.txt -a
 ```
 
 4. Tryb verbose:
 ```bash
-python url_generator.py domains.txt -v
+python domain2url/cli.py domains.txt -v
 ```
 
 5. Zaawansowana konfiguracja logowania:
 ```bash
-python url_generator.py domains.txt --log-level DEBUG --log-file moj_log.log
+python domain2url/cli.py domains.txt --log-level DEBUG --log-file moj_log.log
 ```
 
 ### Główne cechy:

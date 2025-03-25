@@ -77,6 +77,19 @@ def get_domain_content(url):
         return None
 
 
+def generate_filename(self, url: str) -> str:
+    """
+    Generowanie nazwy pliku na podstawie URL.
+
+    Args:
+        url (str): Adres URL
+
+    Returns:
+        str: Znormalizowana nazwa pliku
+    """
+    parsed_url = urlparse(url)
+    return f"{parsed_url.netloc.replace('.', '_').replace(':', '_')}.png"
+
 def analyze_content(html_content):
     """Analyze website content to identify theme and technologies."""
     if not html_content:
@@ -247,13 +260,16 @@ def main():
                 analysis = analyze_content(html_content)
 
                 # Capture thumbnail
-                from screenshot import capture_thumbnail
-                thumbnail_path = capture_thumbnail(url, domain_name + ".jpg")
+                from screenshot.ScreenshotCapture import ScreenshotCapture
+                # Zrzut jednej strony
+                screenshotter = ScreenshotCapture(output_dir="media/thumbnails")
+                thumbnail_path = screenshotter.capture(url)
 
                 # Create site data
                 site_data = {
                     "domain": domain_name,
                     "url": url,
+                    "thumbnail": thumbnail_path,
                     "theme": analysis["theme"],
                     "keywords": analysis["keywords"],
                     "technologies": analysis["technologies"],

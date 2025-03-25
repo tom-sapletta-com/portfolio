@@ -123,6 +123,7 @@
                     data.forEach(site => {
                         const domain = site.domain || '';
                         const url = site.url || '';
+                        const thumbnail = site.thumbnail || '';
                         const theme = site.theme || 'Unknown';
                         const technologies = site.technologies || [];
                         const keywords = site.keywords || [];
@@ -144,7 +145,7 @@
                         // Create HTML content
                         item.innerHTML = `
                             <div class="thumbnail-container">
-                                <img src="media/thumbnails/${domain}.jpg" alt="${domain}" onerror="
+                                <img src="${thumbnail}" alt="${domain}" onerror="
                                     if (!this.getAttribute('data-error-handled')) {
                                         this.setAttribute('data-error-handled', 'true');
 

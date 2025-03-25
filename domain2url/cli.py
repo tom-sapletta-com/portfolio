@@ -98,6 +98,11 @@ def check_url_availability(url: str,
         return False
 
 
+# Python
+def sort_by_length_descending(arr):
+    return sorted(arr, key=len, reverse=True)
+
+
 def process_domains(input_file: str,
                     output_file: str = None,
                     only_available: bool = DEFAULT_ONLY_AVAILABLE,
@@ -126,9 +131,10 @@ def process_domains(input_file: str,
 
     for domain in domains:
         domain_urls = generate_urls(domain)
+        domain_urls = sort_by_length_descending(domain_urls)
+
         for url in domain_urls:
             is_available = check_url_availability(url, logger=logger)
-
             # Opcjonalne filtrowanie tylko dostępnych URL
             if not only_available or is_available:
                 result = {
@@ -141,6 +147,7 @@ def process_domains(input_file: str,
                 # Opcjonalny tryb verbose
                 if verbose and logger:
                     logger.info(f"Domena: {domain}, URL: {url}, Dostępna: {is_available}")
+                break
 
     # Zapis do pliku CSV
     try:
